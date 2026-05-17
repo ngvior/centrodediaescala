@@ -23,6 +23,8 @@
 # misc
 .DS_Store
 *.pem
+.atl/
+.agents/skills/
 
 # debug
 npm-debug.log*

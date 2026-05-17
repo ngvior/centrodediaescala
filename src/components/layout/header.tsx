@@ -1,24 +1,36 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu } from "lucide-react";
 
 const navigation = [
-  { name: "Inicio", href: "/" },
-  { name: "Institución", href: "/institucion" },
-  { name: "Actividades", href: "/actividades" },
-  { name: "Contacto", href: "/contacto" },
+  { name: "Inicio", href: "#inicio" },
+  { name: "Nuestra Institución", href: "#institucion" },
+  { name: "Actividades", href: "#actividades" },
+  { name: "Contacto", href: "#contacto" },
 ];
 
 export function Header() {
-  const pathname = usePathname();
+  const scrollTo = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    e.preventDefault();
+    const targetId = href.replace('#', '');
+    const element = document.getElementById(targetId);
+    if (element) {
+      const headerOffset = 80;
+      const elementPosition = element.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: "smooth"
+      });
+    }
+  };
 
   return (
-    <header className="fixed top-0 w-full z-50 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-border shadow-sm">
+    <header className="fixed top-0 w-full z-50 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-border shadow-sm transition-all duration-300">
       <nav className="container mx-auto px-4 md:px-6 h-20 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2">
+        <Link href="#inicio" onClick={(e) => scrollTo(e, "#inicio")} className="flex items-center gap-2">
           <div className="bg-primary text-white font-bold text-2xl px-2 py-1 rounded">ESCALA</div>
           <span className="font-bold text-lg hidden sm:inline-block text-foreground">
             Centro de Día
@@ -29,20 +41,16 @@ export function Header() {
         <div className="hidden md:flex items-center gap-8">
           <div className="flex gap-6">
             {navigation.map((item) => (
-              <Link
-                key={item.href}
+              <a
+                key={item.name}
                 href={item.href}
-                className={`text-sm font-medium transition-colors hover:text-primary ${
-                  pathname === item.href ? "text-primary" : "text-muted-foreground"
-                }`}
+                onClick={(e) => scrollTo(e, item.href)}
+                className="text-sm font-bold uppercase tracking-wider transition-colors text-muted-foreground hover:text-primary"
               >
                 {item.name}
-              </Link>
+              </a>
             ))}
           </div>
-          <Button className="bg-secondary hover:bg-secondary/90 text-white" render={<Link href="/contacto" />}>
-            Turnos
-          </Button>
         </div>
 
         {/* Mobile Navigation */}
@@ -54,19 +62,18 @@ export function Header() {
           <SheetContent side="right" className="bg-white">
             <div className="flex flex-col gap-6 mt-8">
               {navigation.map((item) => (
-                <Link
-                  key={item.href}
+                <a
+                  key={item.name}
                   href={item.href}
-                  className={`text-lg font-medium transition-colors hover:text-primary ${
-                    pathname === item.href ? "text-primary" : "text-muted-foreground"
-                  }`}
+                  onClick={(e) => {
+                    scrollTo(e, item.href);
+                    // Opcional: cerrar el menú al clickear, pero require state.
+                  }}
+                  className="text-lg font-bold uppercase transition-colors hover:text-primary text-muted-foreground"
                 >
                   {item.name}
-                </Link>
+                </a>
               ))}
-              <Button className="bg-secondary hover:bg-secondary/90 text-white w-full mt-4" render={<Link href="/contacto" />}>
-                Solicitar Turno
-              </Button>
             </div>
           </SheetContent>
         </Sheet>

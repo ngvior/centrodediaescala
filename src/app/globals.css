@@ -38,7 +38,7 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --color-escala-blue: #1593d7;
+  --color-escala-blue: #1593D7;
   --color-escala-light-blue: #49b5e7;
   --color-escala-red: #ff205e;
   --color-escala-orange: #ff7e2e;
@@ -57,12 +57,12 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #333333;
+  --foreground: #888888;
   --card: #ffffff;
   --card-foreground: #333333;
   --popover: #ffffff;
   --popover-foreground: #333333;
-  --primary: #1593d7;
+  --primary: #1593D7;
   --primary-foreground: #ffffff;
   --secondary: #49b5e7;
   --secondary-foreground: #ffffff;
@@ -73,21 +73,21 @@
   --destructive: #ff205e;
   --border: #e5e7eb;
   --input: #e5e7eb;
-  --ring: #1593d7;
-  --chart-1: #1593d7;
+  --ring: #1593D7;
+  --chart-1: #1593D7;
   --chart-2: #ff7e2e;
   --chart-3: #94d500;
   --chart-4: #00bfd5;
   --chart-5: #a35db4;
-  --radius: 0.5rem;
+  --radius: 0;
   --sidebar: #ffffff;
   --sidebar-foreground: #333333;
-  --sidebar-primary: #1593d7;
+  --sidebar-primary: #1593D7;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #f9f9f9;
   --sidebar-accent-foreground: #333333;
   --sidebar-border: #e5e7eb;
-  --sidebar-ring: #1593d7;
+  --sidebar-ring: #1593D7;
 }
 
 .dark {
@@ -99,7 +99,7 @@
   --popover-foreground: #ffffff;
   --primary: #49b5e7;
   --primary-foreground: #ffffff;
-  --secondary: #1593d7;
+  --secondary: #1593D7;
   --secondary-foreground: #ffffff;
   --muted: #444444;
   --muted-foreground: #cccccc;
@@ -132,6 +132,21 @@
     @apply bg-background text-foreground font-sans;
   }
   h1, h2, h3, h4, h5, h6 {
-    @apply font-heading font-semibold text-[#111111] dark:text-white;
+    @apply font-heading text-[#333333] dark:text-white uppercase;
+  }
+  h2 {
+    @apply text-[38px] font-bold mt-9 mb-6 text-center;
+  }
+  h3 {
+    @apply text-[16px] font-semibold mb-1;
+  }
+  h4 {
+    @apply text-[20px] font-semibold mt-7 mb-5 text-primary;
+  }
+  h5 {
+    @apply text-[29px] font-semibold text-center my-14;
+  }
+  p {
+    @apply leading-6 m-0;
   }
 }

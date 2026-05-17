@@ -1,7 +1,31 @@
+import { getAdminDashboardData } from "@/actions/admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Calendar, Inbox, Settings } from "lucide-react";
+import { Calendar, Inbox, Users } from "lucide-react";
 
-export default function DashboardPage() {
+function formatRequestDate(value: string) {
+  return new Intl.DateTimeFormat("es-AR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function getStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    PENDING: "PENDIENTE",
+    CONTACTED: "CONTACTADO",
+    CONFIRMED: "CONFIRMADO",
+    REJECTED: "RECHAZADO",
+  };
+
+  return labels[status] ?? status;
+}
+
+export default async function DashboardPage() {
+  const dashboard = await getAdminDashboardData();
+
   return (
     <div className="space-y-6">
       <div>
@@ -16,7 +40,9 @@ export default function DashboardPage() {
             <Inbox className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-primary">3</div>
+            <div className="text-2xl font-bold text-primary">
+              {dashboard.pendingInterviewRequests}
+            </div>
             <p className="text-xs text-muted-foreground">Solicitudes por revisar</p>
           </CardContent>
         </Card>
@@ -27,7 +53,7 @@ export default function DashboardPage() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">5</div>
+            <div className="text-2xl font-bold">{dashboard.activeProfessionals}</div>
             <p className="text-xs text-muted-foreground">En el equipo activo</p>
           </CardContent>
         </Card>
@@ -38,7 +64,7 @@ export default function DashboardPage() {
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">6</div>
+            <div className="text-2xl font-bold">{dashboard.activeActivities}</div>
             <p className="text-xs text-muted-foreground">Talleres configurados</p>
           </CardContent>
         </Card>
@@ -50,22 +76,28 @@ export default function DashboardPage() {
             <CardTitle>Últimas Solicitudes de Entrevista</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between border-b pb-4">
-                <div>
-                  <p className="font-medium">Juan Pérez (para Martín Pérez)</p>
-                  <p className="text-sm text-muted-foreground">Hace 2 horas • 11 4532-1234</p>
-                </div>
-                <div className="bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded font-medium">PENDIENTE</div>
+            {dashboard.latestInterviewRequests.length > 0 ? (
+              <div className="space-y-4">
+                {dashboard.latestInterviewRequests.map((request) => (
+                  <div key={request.id} className="flex items-center justify-between border-b pb-4">
+                    <div>
+                      <p className="font-medium">
+                        {request.contact_name}
+                        {request.patient_name ? ` (para ${request.patient_name})` : ""}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {formatRequestDate(request.created_at)} • {request.phone}
+                      </p>
+                    </div>
+                    <div className="bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded font-medium">
+                      {getStatusLabel(request.status)}
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="flex items-center justify-between border-b pb-4">
-                <div>
-                  <p className="font-medium">María González</p>
-                  <p className="text-sm text-muted-foreground">Ayer • 11 9876-5432</p>
-                </div>
-                <div className="bg-emerald-100 text-emerald-800 text-xs px-2 py-1 rounded font-medium">CONTACTADO</div>
-              </div>
-            </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No hay solicitudes cargadas todavía.</p>
+            )}
           </CardContent>
         </Card>
       </div>

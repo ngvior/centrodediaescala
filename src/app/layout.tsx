@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { Lato, Dosis } from "next/font/google";
 import "./globals.css";
-import { Header } from "@/components/layout/header";
-import { Footer } from "@/components/layout/footer";
 
 const lato = Lato({
   variable: "--font-lato",
@@ -32,9 +30,7 @@ export default function RootLayout({
       className={`${lato.variable} ${dosis.variable} h-full antialiased font-lato`}
     >
       <body className="min-h-full flex flex-col font-lato">
-        <Header />
-        <main className="flex-1">{children}</main>
-        <Footer />
+        {children}
       </body>
     </html>
   );
