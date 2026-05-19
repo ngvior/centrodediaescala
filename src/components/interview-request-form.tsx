@@ -16,6 +16,20 @@ const initialState: InterviewSubmissionState = {
   message: '',
 }
 
+export type InterviewRequestFormCopy = {
+  title: string
+  description: string
+  contactNameLabel: string
+  patientNameLabel: string
+  phoneLabel: string
+  emailLabel: string
+  messageLabel: string
+  messagePlaceholder: string
+  submitLabel: string
+  pendingLabel: string
+  honeypotLabel: string
+}
+
 function getFieldError(
   state: InterviewSubmissionState,
   field: keyof NonNullable<InterviewSubmissionState['fieldErrors']>
@@ -23,7 +37,7 @@ function getFieldError(
   return state.fieldErrors?.[field]
 }
 
-export function InterviewRequestForm() {
+export function InterviewRequestForm({ copy }: { copy: InterviewRequestFormCopy }) {
   const [state, formAction, isPending] = useActionState(
     submitInterviewRequest,
     initialState
@@ -36,14 +50,14 @@ export function InterviewRequestForm() {
   return (
     <form action={formAction} className="mt-12 space-y-6 rounded-lg border border-[#e5e5e5] bg-[#f9f9f9] p-6 text-left shadow-sm">
       <div className="text-center">
-        <h3 className="mb-2 text-2xl font-bold text-primary">Solicitar entrevista</h3>
+        <h3 className="mb-2 text-2xl font-bold text-primary">{copy.title}</h3>
         <p className="text-sm text-[#888888]">
-          Completá tus datos y el equipo de Escala se va a contactar para coordinar una cita.
+          {copy.description}
         </p>
       </div>
 
       <div className="absolute left-[-10000px] top-auto h-px w-px overflow-hidden" aria-hidden="true">
-        <Label htmlFor="company_website">Sitio web</Label>
+        <Label htmlFor="company_website">{copy.honeypotLabel}</Label>
         <Input
           id="company_website"
           name="company_website"
@@ -55,7 +69,7 @@ export function InterviewRequestForm() {
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="contact_name">Nombre de contacto *</Label>
+          <Label htmlFor="contact_name">{copy.contactNameLabel} *</Label>
           <Input
             id="contact_name"
             name="contact_name"
@@ -71,14 +85,14 @@ export function InterviewRequestForm() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="patient_name">Nombre de la persona interesada</Label>
+          <Label htmlFor="patient_name">{copy.patientNameLabel}</Label>
           <Input id="patient_name" name="patient_name" />
         </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="phone">Teléfono *</Label>
+          <Label htmlFor="phone">{copy.phoneLabel} *</Label>
           <Input
             id="phone"
             name="phone"
@@ -95,7 +109,7 @@ export function InterviewRequestForm() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email">{copy.emailLabel}</Label>
           <Input
             id="email"
             name="email"
@@ -112,12 +126,12 @@ export function InterviewRequestForm() {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="message">Mensaje</Label>
+        <Label htmlFor="message">{copy.messageLabel}</Label>
         <Textarea
           id="message"
           name="message"
           rows={4}
-          placeholder="Contanos brevemente qué necesitás consultar."
+          placeholder={copy.messagePlaceholder}
         />
       </div>
 
@@ -131,7 +145,7 @@ export function InterviewRequestForm() {
       ) : null}
 
       <Button type="submit" size="lg" className="w-full rounded-full uppercase" disabled={isPending}>
-        {isPending ? 'Enviando...' : 'Enviar solicitud'}
+        {isPending ? copy.pendingLabel : copy.submitLabel}
       </Button>
     </form>
   )

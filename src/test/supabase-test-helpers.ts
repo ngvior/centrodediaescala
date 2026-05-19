@@ -1,5 +1,10 @@
 import { vi, type Mock } from 'vitest'
 
+import {
+  SITE_SETTING_DEFINITIONS,
+  type SiteSettingType,
+} from '@/lib/site-settings'
+
 export type SupabaseTestError = {
   message: string
 }
@@ -103,23 +108,21 @@ export function createFormData(values: Record<string, string | number | null>) {
 }
 
 export function createRequiredSiteSettingsRows() {
-  return [
-    'contact_phone',
-    'contact_address',
-    'contact_schedule',
-    'social_facebook',
-    'home_hero_title',
-    'home_hero_subtitle',
-    'home_hero_text',
-    'about_title',
-    'about_facilities_title',
-    'about_facilities_text',
-    'about_requirements_title',
-    'about_requirements_text',
-    'contact_title',
-    'contact_text',
-  ].map((settingKey) => ({
-    setting_key: settingKey,
-    setting_value: `db-${settingKey}`,
+  return SITE_SETTING_DEFINITIONS.map((definition) => ({
+    setting_key: definition.key,
+    setting_value: getDefaultSettingValue(definition.key, definition.type),
+    setting_type: definition.type,
   }))
+}
+
+function getDefaultSettingValue(settingKey: string, settingType: SiteSettingType) {
+  if (settingKey === 'header_navigation') {
+    return JSON.stringify([{ label: 'Inicio', href: '#inicio' }])
+  }
+
+  if (settingType === 'JSON') {
+    return JSON.stringify([`db-${settingKey}`])
+  }
+
+  return `db-${settingKey}`
 }

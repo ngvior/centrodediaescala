@@ -1,9 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 
 import {
   createRequiredSiteSettingsRows,
   createSupabaseClientMock,
 } from '@/test/supabase-test-helpers'
+import { REQUIRED_SITE_SETTING_KEYS } from '@/lib/site-settings'
 
 const apiMocks = vi.hoisted(() => ({
   createClient: vi.fn(),
@@ -28,7 +31,7 @@ describe('public data API', () => {
   })
 
   it('reads site settings from Supabase and normalizes rows by setting key', async () => {
-    const { client } = createSupabaseClientMock([
+    const { client, queries } = createSupabaseClientMock([
       {
         table: 'site_settings',
         response: { data: createRequiredSiteSettingsRows(), error: null },
@@ -39,9 +42,61 @@ describe('public data API', () => {
     await expect(getSiteSettings()).resolves.toMatchObject({
       contact_phone: 'db-contact_phone',
       home_hero_title: 'db-home_hero_title',
+      about_compliance_items: ['db-about_compliance_items'],
+      header_navigation: [{ label: 'Inicio', href: '#inicio' }],
     })
 
     expect(client.from).toHaveBeenCalledWith('site_settings')
+    expect(queries[0].select).toHaveBeenCalledWith(
+      'setting_key, setting_value, setting_type'
+    )
+  })
+
+  it('fails safely when a required site setting is missing', async () => {
+    const rows = createRequiredSiteSettingsRows().filter(
+      (row) => row.setting_key !== 'about_text'
+    )
+    const { client } = createSupabaseClientMock([
+      {
+        table: 'site_settings',
+        response: { data: rows, error: null },
+      },
+    ])
+    apiMocks.createClient.mockResolvedValue(client)
+
+    await expect(getSiteSettings()).rejects.toThrow(
+      'Missing required site settings: about_text'
+    )
+  })
+
+  it('fails safely when a required JSON site setting is malformed', async () => {
+    const rows = createRequiredSiteSettingsRows().map((row) =>
+      row.setting_key === 'about_compliance_items'
+        ? { ...row, setting_value: '{broken-json' }
+        : row
+    )
+    const { client } = createSupabaseClientMock([
+      {
+        table: 'site_settings',
+        response: { data: rows, error: null },
+      },
+    ])
+    apiMocks.createClient.mockResolvedValue(client)
+
+    await expect(getSiteSettings()).rejects.toThrow(
+      'Malformed JSON site setting: about_compliance_items'
+    )
+  })
+
+  it('keeps seed defaults aligned with every required setting key', () => {
+    const seedSql = readFileSync(
+      path.join(process.cwd(), 'supabase/seed.sql'),
+      'utf8'
+    )
+
+    for (const key of REQUIRED_SITE_SETTING_KEYS) {
+      expect(seedSql).toContain(`'${key}'`)
+    }
   })
 
   it('fails explicitly when Supabase returns a read error', async () => {

@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import Link from "next/link";
-import { LayoutDashboard, Users, Calendar, Settings, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, Calendar, Settings, LogOut, ImageIcon, MessageSquare } from "lucide-react";
 import { logoutAdmin } from "@/actions/auth";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
@@ -24,6 +24,14 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           <Link href="/admin/actividades" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/5 transition-colors">
             <Calendar className="h-5 w-5 text-secondary" />
             Actividades
+          </Link>
+          <Link href="/admin/galeria" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/5 transition-colors">
+            <ImageIcon className="h-5 w-5 text-secondary" />
+            Galería
+          </Link>
+          <Link href="/admin/entrevistas" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/5 transition-colors">
+            <MessageSquare className="h-5 w-5 text-secondary" />
+            Entrevistas
           </Link>
           <Link href="/admin/configuracion" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/5 transition-colors">
             <Settings className="h-5 w-5 text-secondary" />

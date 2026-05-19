@@ -1,5 +1,6 @@
 import { getAdminDashboardData } from "@/actions/admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import Link from "next/link";
 import { Calendar, Inbox, Users } from "lucide-react";
 
 function formatRequestDate(value: string) {
@@ -36,14 +37,16 @@ export default async function DashboardPage() {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <Card className="border-border shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Turnos Pendientes</CardTitle>
+            <CardTitle className="text-sm font-medium">Entrevistas Pendientes</CardTitle>
             <Inbox className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-primary">
               {dashboard.pendingInterviewRequests}
             </div>
-            <p className="text-xs text-muted-foreground">Solicitudes por revisar</p>
+            <Link className="text-xs text-primary hover:underline" href="/admin/entrevistas?status=PENDING">
+              Ver solicitudes por revisar
+            </Link>
           </CardContent>
         </Card>
         
@@ -72,8 +75,11 @@ export default async function DashboardPage() {
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
         <Card className="col-span-4 border-border shadow-sm">
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Últimas Solicitudes de Entrevista</CardTitle>
+            <Link className="text-sm font-medium text-primary hover:underline" href="/admin/entrevistas">
+              Abrir CRM
+            </Link>
           </CardHeader>
           <CardContent>
             {dashboard.latestInterviewRequests.length > 0 ? (

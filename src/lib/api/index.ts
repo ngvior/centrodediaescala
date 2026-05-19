@@ -1,6 +1,13 @@
-import { createClient } from '@/lib/supabase/server'
+import { cache } from 'react'
 
-export type SiteSettings = Record<string, string>
+import { createClient } from '@/lib/supabase/server'
+import {
+  parsePublicSiteSettings,
+  type PublicSiteSettings,
+  type SiteSettingRow,
+} from '@/lib/site-settings'
+
+export type SiteSettings = PublicSiteSettings
 
 export type HomeObjective = {
   id: string
@@ -43,23 +50,6 @@ export type GalleryItem = {
   image_url: string
 }
 
-const REQUIRED_SITE_SETTING_KEYS = [
-  'contact_phone',
-  'contact_address',
-  'contact_schedule',
-  'social_facebook',
-  'home_hero_title',
-  'home_hero_subtitle',
-  'home_hero_text',
-  'about_title',
-  'about_facilities_title',
-  'about_facilities_text',
-  'about_requirements_title',
-  'about_requirements_text',
-  'contact_title',
-  'contact_text',
-] as const
-
 type SupabaseResponse<T> = {
   data: T | null
   error: { message: string } | null
@@ -80,30 +70,19 @@ function assertSupabaseData<T>(
   return response.data
 }
 
-export async function getSiteSettings(): Promise<SiteSettings> {
+export const getSiteSettings = cache(async (): Promise<SiteSettings> => {
   const supabase = await createClient()
   const response = await supabase
     .from('site_settings')
-    .select('setting_key, setting_value')
+    .select('setting_key, setting_value, setting_type')
 
   const rows = assertSupabaseData(
     'site_settings',
-    response as SupabaseResponse<Array<{ setting_key: string; setting_value: string }>>
+    response as SupabaseResponse<SiteSettingRow[]>
   )
 
-  const settings = rows.reduce<SiteSettings>((settingsByKey, item) => {
-    settingsByKey[item.setting_key] = item.setting_value
-    return settingsByKey
-  }, {})
-
-  const missingKeys = REQUIRED_SITE_SETTING_KEYS.filter((key) => !settings[key])
-
-  if (missingKeys.length > 0) {
-    throw new Error(`Missing required site settings: ${missingKeys.join(', ')}`)
-  }
-
-  return settings
-}
+  return parsePublicSiteSettings(rows)
+})
 
 export async function getHomeObjectives(): Promise<HomeObjective[]> {
   const supabase = await createClient()

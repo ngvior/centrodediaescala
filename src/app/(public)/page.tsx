@@ -29,6 +29,11 @@ export default async function Home() {
   const half = Math.ceil(activities.length / 2);
   const leftActivities = activities.slice(0, half);
   const rightActivities = activities.slice(half);
+  const complianceHalf = Math.ceil(siteSettings.about_compliance_items.length / 2);
+  const complianceColumns = [
+    siteSettings.about_compliance_items.slice(0, complianceHalf),
+    siteSettings.about_compliance_items.slice(complianceHalf),
+  ];
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -53,7 +58,7 @@ export default async function Home() {
                 {siteSettings.home_hero_text}
               </p>
               <a href="#institucion" className="inline-block px-10 py-4 text-white text-[16px] font-semibold uppercase bg-primary rounded-full hover:bg-secondary transition-colors duration-300">
-                Conocenos
+                {siteSettings.home_hero_cta_label}
               </a>
             </div>
             {/* The right side in legacy is empty, leaving space for the background image */}
@@ -70,11 +75,11 @@ export default async function Home() {
           {/* Legacy twitter-feed style intro text */}
           <div className="bg-primary p-8 text-center text-white mb-16 rounded-sm shadow-md">
             <p className="text-lg leading-relaxed text-white">
-              Es para <strong>jóvenes y adultos de ambos sexos, mayores de 25 años</strong>, con discapacidad intelectual de grado leve, moderado y severo sin dependencia, con o sin patología motora asociada, con o sin trastorno o patología sensorial; compensados psíquicamente. En todos los casos, con previa evaluación del equipo interdisciplinario de nuestra institución.
+              {siteSettings.about_text}
             </p>
           </div>
 
-          <h5 className="text-center">Objetivos</h5>
+          <h5 className="text-center">{siteSettings.about_objectives_title}</h5>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-12 mb-16">
             {objectives.map((obj) => {
               return (
@@ -93,30 +98,25 @@ export default async function Home() {
             <h4 className="mb-4">{siteSettings.about_facilities_title}</h4>
             <p className="mb-8">{siteSettings.about_facilities_text}</p>
             
-            <h3 className="mb-6 font-bold text-lg">Nuestro Centro cumple con:</h3>
+            <h3 className="mb-6 font-bold text-lg">{siteSettings.about_compliance_title}</h3>
             <div className="grid md:grid-cols-2 gap-8 mb-12">
-              <ul className="space-y-4">
-                <li className="flex items-start gap-2"><CheckCircle2 className="h-5 w-5 text-primary shrink-0 mt-1" /> Disposición de categorización del Servicio Nacional de Rehabilitación</li>
-                <li className="flex items-start gap-2"><CheckCircle2 className="h-5 w-5 text-primary shrink-0 mt-1" /> Habilitación Municipal correspondiente, constancia de inscripción a la Inspección General de Justicia, AFIP, Ingresos Brutos</li>
-                <li className="flex items-start gap-2"><CheckCircle2 className="h-5 w-5 text-primary shrink-0 mt-1" /> Contamos con servicio de catering el cual brinda menú estacional supervisado por nuestra Nutricionista</li>
-                <li className="flex items-start gap-2"><CheckCircle2 className="h-5 w-5 text-primary shrink-0 mt-1" /> Constancia de limpieza de tanques en forma trimestral. Certificado de Potabilidad del agua</li>
-              </ul>
-              <ul className="space-y-4">
-                <li className="flex items-start gap-2"><CheckCircle2 className="h-5 w-5 text-primary shrink-0 mt-1" /> Plan de evacuación para emergencias con asignación de roles y certificado de capacitación de las personas, aprobado por Defensa Civil</li>
-                <li className="flex items-start gap-2"><CheckCircle2 className="h-5 w-5 text-primary shrink-0 mt-1" /> Servicio de Seguridad e Higiene. Certificado de desinsectación y desinfección aprobado por APRA</li>
-                <li className="flex items-start gap-2"><CheckCircle2 className="h-5 w-5 text-primary shrink-0 mt-1" /> Póliza de Seguros (Responsabilidad Civil Comprensiva) a través de La Meridional</li>
-                <li className="flex items-start gap-2"><CheckCircle2 className="h-5 w-5 text-primary shrink-0 mt-1" /> Servicio Médico de Emergencias a Través de Emergencias SA</li>
-              </ul>
+              {complianceColumns.map((items, columnIndex) => (
+                <ul key={columnIndex} className="space-y-4">
+                  {items.map((item) => (
+                    <li key={item} className="flex items-start gap-2"><CheckCircle2 className="h-5 w-5 text-primary shrink-0 mt-1" /> {item}</li>
+                  ))}
+                </ul>
+              ))}
             </div>
             
             <h4 className="mb-4">{siteSettings.about_requirements_title}</h4>
             <div className="bg-[#f5f5f5] p-6 rounded border border-[#e3e3e3]">
               <p className="mb-4">{siteSettings.about_requirements_text}</p>
-              <p className="font-semibold mb-2">Los requisitos son:</p>
+              <p className="font-semibold mb-2">{siteSettings.about_requirements_label}</p>
               <ul className="space-y-2">
-                <li className="flex items-center gap-2"><Check className="h-4 w-4 text-primary" /> Mayor a 25 años</li>
-                <li className="flex items-center gap-2"><Check className="h-4 w-4 text-primary" /> Fotocopia de DNI</li>
-                <li className="flex items-center gap-2"><Check className="h-4 w-4 text-primary" /> Fotocopia de Certificado de Discapacidad</li>
+                {siteSettings.about_requirements_items.map((item) => (
+                  <li key={item} className="flex items-center gap-2"><Check className="h-4 w-4 text-primary" /> {item}</li>
+                ))}
               </ul>
             </div>
           </div>
@@ -126,7 +126,7 @@ export default async function Home() {
       {/* Work (Actividades) */}
       <section id="actividades" className="w-full py-16 bg-[#f9f9f9] border-t border-b border-[#e5e5e5]">
         <div className="container px-4 md:px-6 mx-auto">
-          <h2>Actividades</h2>
+          <h2>{siteSettings.activities_section_title}</h2>
           <div className="grid md:grid-cols-2 gap-x-12 gap-y-8 mt-12">
             
             {/* Left Column */}
@@ -167,17 +167,18 @@ export default async function Home() {
       {/* Portfolio (Galería) */}
       <section id="galeria" className="w-full py-16 bg-white">
         <div className="container px-4 md:px-6 mx-auto">
-          <h2>Galería</h2>
+          <h2>{siteSettings.gallery_section_title}</h2>
           
           {/* Filters */}
           <div className="flex flex-wrap justify-center gap-2 mb-10 border-b border-[#e5e5e5] pb-4">
-            <button className="px-4 py-2 font-bold text-[#111111] hover:text-primary transition-colors border-b-2 border-primary uppercase text-sm">Todas</button>
-            <button className="px-4 py-2 font-bold text-[#888] hover:text-primary transition-colors border-b-2 border-transparent uppercase text-sm">Integración</button>
-            <button className="px-4 py-2 font-bold text-[#888] hover:text-primary transition-colors border-b-2 border-transparent uppercase text-sm">Terapéutico</button>
-            <button className="px-4 py-2 font-bold text-[#888] hover:text-primary transition-colors border-b-2 border-transparent uppercase text-sm">Ocupacional</button>
-            <button className="px-4 py-2 font-bold text-[#888] hover:text-primary transition-colors border-b-2 border-transparent uppercase text-sm">Nuestras Manos</button>
-            <button className="px-4 py-2 font-bold text-[#888] hover:text-primary transition-colors border-b-2 border-transparent uppercase text-sm">Deportivo</button>
-            <button className="px-4 py-2 font-bold text-[#888] hover:text-primary transition-colors border-b-2 border-transparent uppercase text-sm">Terapia Canina</button>
+            {siteSettings.gallery_filter_labels.map((label, index) => (
+              <button
+                key={label}
+                className={index === 0 ? "px-4 py-2 font-bold text-[#111111] hover:text-primary transition-colors border-b-2 border-primary uppercase text-sm" : "px-4 py-2 font-bold text-[#888] hover:text-primary transition-colors border-b-2 border-transparent uppercase text-sm"}
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
           {/* Grid */}
@@ -204,8 +205,8 @@ export default async function Home() {
       {/* Team (Profesionales) */}
       <section id="equipo" className="w-full py-16 bg-[#f9f9f9] border-t border-[#e5e5e5]">
         <div className="container px-4 md:px-6 mx-auto">
-          <h2>Profesionales</h2>
-          <h6 className="mb-12">Conoce a nuestro equipo interdisciplinario.</h6>
+          <h2>{siteSettings.professionals_section_title}</h2>
+          <h6 className="mb-12">{siteSettings.professionals_subtitle}</h6>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-8 gap-y-12">
             {professionals.map((prof) => (
@@ -235,7 +236,7 @@ export default async function Home() {
           <div className="max-w-4xl mx-auto text-center mt-8">
             <h3 className="text-2xl text-primary font-bold mb-4">{siteSettings.contact_text}</h3>
             <p className="text-lg text-[#888888] mb-12">
-              Los invitamos a conocer nuestro espacio de trabajo concertando una cita, estaremos felices de recibirlos. Estamos en el barrio de Mataderos en la Ciudad Autónoma de Buenos Aires, con las puertas abiertas durante todo el año.
+              {siteSettings.contact_body_text}
             </p>
 
             <div className="grid md:grid-cols-3 gap-8">
@@ -243,7 +244,7 @@ export default async function Home() {
                 <div className="w-12 h-12 bg-primary text-white rounded-full flex items-center justify-center mx-auto mb-4">
                   <MapPin className="h-5 w-5" />
                 </div>
-                <p className="font-bold text-[#333]">Dirección</p>
+                <p className="font-bold text-[#333]">{siteSettings.contact_address_label}</p>
                 <p className="text-sm mt-2">{siteSettings.contact_address}</p>
               </div>
               
@@ -251,7 +252,7 @@ export default async function Home() {
                 <div className="w-12 h-12 bg-primary text-white rounded-full flex items-center justify-center mx-auto mb-4">
                   <Phone className="h-5 w-5" />
                 </div>
-                <p className="font-bold text-[#333]">Teléfono</p>
+                <p className="font-bold text-[#333]">{siteSettings.contact_phone_label}</p>
                 <p className="text-sm mt-2">{siteSettings.contact_phone}</p>
               </div>
               
@@ -259,12 +260,26 @@ export default async function Home() {
                 <div className="w-12 h-12 bg-primary text-white rounded-full flex items-center justify-center mx-auto mb-4">
                   <Clock className="h-5 w-5" />
                 </div>
-                <p className="font-bold text-[#333]">Horarios</p>
+                <p className="font-bold text-[#333]">{siteSettings.contact_schedule_label}</p>
                 <p className="text-sm mt-2">{siteSettings.contact_schedule}</p>
               </div>
             </div>
 
-            <InterviewRequestForm />
+            <InterviewRequestForm
+              copy={{
+                title: siteSettings.interview_form_title,
+                description: siteSettings.interview_form_description,
+                contactNameLabel: siteSettings.interview_form_contact_name_label,
+                patientNameLabel: siteSettings.interview_form_patient_name_label,
+                phoneLabel: siteSettings.interview_form_phone_label,
+                emailLabel: siteSettings.interview_form_email_label,
+                messageLabel: siteSettings.interview_form_message_label,
+                messagePlaceholder: siteSettings.interview_form_message_placeholder,
+                submitLabel: siteSettings.interview_form_submit_label,
+                pendingLabel: siteSettings.interview_form_pending_label,
+                honeypotLabel: siteSettings.interview_form_honeypot_label,
+              }}
+            />
           </div>
         </div>
       </section>
