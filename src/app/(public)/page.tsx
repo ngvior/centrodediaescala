@@ -86,7 +86,7 @@ export default async function Home() {
 					<h2>{siteSettings.about_title}</h2>
 
 					{/* Legacy twitter-feed style intro text */}
-					<div className="bg-primary p-8 text-center text-white mb-16 rounded-sm shadow-md">
+					<div className="bg-[#49b5e7] p-8 text-center text-white mb-16 rounded-sm shadow-md">
 						<p className="text-lg leading-relaxed text-white">
 							{siteSettings.about_text}
 						</p>
