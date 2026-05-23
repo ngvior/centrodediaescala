@@ -11,6 +11,72 @@ import { QuoteBand } from "@/components/sections/QuoteBand";
 import { Check, CheckCircle2, MapPin, Phone, Clock } from "lucide-react";
 import Image from "next/image";
 
+function getObjectiveColor(title: string) {
+	const normalizedTitle = title.trim().toLowerCase();
+	if (normalizedTitle.includes("independencia")) {
+		return {
+			hex: "#ff205e",
+			borderClass: "border-[#ff205e]",
+			textClass: "text-[#ff205e]",
+			hoverBg: "hover:bg-[#ff205e]",
+		};
+	}
+	if (
+		normalizedTitle.includes("integración") ||
+		normalizedTitle.includes("integracion")
+	) {
+		return {
+			hex: "#ff7e2e",
+			borderClass: "border-[#ff7e2e]",
+			textClass: "text-[#ff7e2e]",
+			hoverBg: "hover:bg-[#ff7e2e]",
+		};
+	}
+	if (normalizedTitle.includes("habilidades")) {
+		return {
+			hex: "#94d500",
+			borderClass: "border-[#94d500]",
+			textClass: "text-[#94d500]",
+			hoverBg: "hover:bg-[#94d500]",
+		};
+	}
+	if (
+		normalizedTitle.includes("socialización") ||
+		normalizedTitle.includes("socializacion") ||
+		normalizedTitle.includes("comunicación") ||
+		normalizedTitle.includes("comunicacion")
+	) {
+		return {
+			hex: "#00bfd5",
+			borderClass: "border-[#00bfd5]",
+			textClass: "text-[#00bfd5]",
+			hoverBg: "hover:bg-[#00bfd5]",
+		};
+	}
+	if (normalizedTitle.includes("autoestima")) {
+		return {
+			hex: "#a35db4",
+			borderClass: "border-[#a35db4]",
+			textClass: "text-[#a35db4]",
+			hoverBg: "hover:bg-[#a35db4]",
+		};
+	}
+	if (normalizedTitle.includes("estrategias")) {
+		return {
+			hex: "#00bc6f",
+			borderClass: "border-[#00bc6f]",
+			textClass: "text-[#00bc6f]",
+			hoverBg: "hover:bg-[#00bc6f]",
+		};
+	}
+	return {
+		hex: "#1593D7",
+		borderClass: "border-primary",
+		textClass: "text-primary",
+		hoverBg: "hover:bg-primary",
+	};
+}
+
 export default async function Home() {
 	const siteSettingsPromise = getSiteSettings();
 	const activitiesPromise = getActivities();
@@ -64,7 +130,7 @@ export default async function Home() {
 							<h2 className="text-[48px] text-[#49b5e7] font-bold mb-6 text-left m-0">
 								{siteSettings.home_hero_title}
 							</h2>
-							<p className="text-[16px] text-[#888888] leading-[26px] mb-8">
+							<p className="text-[16px] text-escala-gray leading-[26px] mb-8">
 								{siteSettings.home_hero_text}
 							</p>
 							<a
@@ -94,14 +160,33 @@ export default async function Home() {
 
 					<h5 className="text-center">{siteSettings.about_objectives_title}</h5>
 					<div className="grid grid-cols-1 md:grid-cols-3 gap-12 mb-16">
-						{objectives.map((obj) => {
+						{objectives.map((obj, index) => {
+							const colors = getObjectiveColor(obj.title);
+							const delay = `${index * 150}ms`;
+
 							return (
 								<div key={obj.id} className="text-center group">
-									<div className="mx-auto w-[90px] h-[90px] rounded-full border border-[#e5e5e5] flex items-center justify-center mb-6 transition-all duration-300 group-hover:bg-primary group-hover:text-white group-hover:border-transparent text-muted-foreground">
-										<Check className="h-8 w-8" />
+									<div
+										className={`mx-auto w-[90px] h-[90px] rounded-full border-2 ${colors.borderClass} ${colors.textClass} flex items-center justify-center mb-6 transition-all duration-300 ${colors.hoverBg} hover:text-white hover:border-transparent animate-legacy-zoom-in`}
+										style={{ animationDelay: delay, animationFillMode: "both" }}
+									>
+										<Check
+											className="h-8 w-8"
+											style={{ color: "currentColor" }}
+										/>
 									</div>
-									<h3 className="mb-4">{obj.title}</h3>
-									<p>{obj.description}</p>
+									<h3
+										className="mb-4 text-xl font-bold animate-legacy-fade-in-up"
+										style={{ animationDelay: delay, animationFillMode: "both" }}
+									>
+										{obj.title}
+									</h3>
+									<p
+										className="text-[16px] leading-[26px] text-escala-gray animate-legacy-fade-in-down"
+										style={{ animationDelay: delay, animationFillMode: "both" }}
+									>
+										{obj.description}
+									</p>
 								</div>
 							);
 						})}
