@@ -6,6 +6,8 @@ import {
   getSiteSettings,
 } from "@/lib/api";
 import { InterviewRequestForm } from "@/components/interview-request-form";
+import { GallerySection } from "@/components/sections/GallerySection";
+import { QuoteBand } from "@/components/sections/QuoteBand";
 import { Check, CheckCircle2, MapPin, Phone, Clock } from "lucide-react";
 import Image from "next/image";
 
@@ -54,7 +56,7 @@ export default async function Home() {
               <h2 className="text-[48px] text-[#49b5e7] font-bold mb-6 text-left m-0">
                 {siteSettings.home_hero_title}
               </h2>
-              <p className="text-[16px] text-[#888888] leading-[26px] mb-8">
+              <p className="text-[16px] text-foreground leading-[26px] mb-8">
                 {siteSettings.home_hero_text}
               </p>
               <a href="#institucion" className="inline-block px-10 py-4 text-white text-[16px] font-semibold uppercase bg-primary rounded-full hover:bg-secondary transition-colors duration-300">
@@ -84,7 +86,7 @@ export default async function Home() {
             {objectives.map((obj) => {
               return (
                 <div key={obj.id} className="text-center group">
-                  <div className="mx-auto w-[90px] h-[90px] rounded-full border border-[#e5e5e5] flex items-center justify-center mb-6 transition-all duration-300 group-hover:bg-primary group-hover:text-white group-hover:border-transparent text-[#888]">
+                  <div className="mx-auto w-[90px] h-[90px] rounded-full border border-[#e5e5e5] flex items-center justify-center mb-6 transition-all duration-300 group-hover:bg-primary group-hover:text-white group-hover:border-transparent text-muted-foreground">
                     <Check className="h-8 w-8" />
                   </div>
                   <h3 className="mb-4">{obj.title}</h3>
@@ -165,42 +167,13 @@ export default async function Home() {
       </section>
 
       {/* Portfolio (Galería) */}
-      <section id="galeria" className="w-full py-16 bg-white">
-        <div className="container px-4 md:px-6 mx-auto">
-          <h2>{siteSettings.gallery_section_title}</h2>
-          
-          {/* Filters */}
-          <div className="flex flex-wrap justify-center gap-2 mb-10 border-b border-[#e5e5e5] pb-4">
-            {siteSettings.gallery_filter_labels.map((label, index) => (
-              <button
-                key={label}
-                className={index === 0 ? "px-4 py-2 font-bold text-[#111111] hover:text-primary transition-colors border-b-2 border-primary uppercase text-sm" : "px-4 py-2 font-bold text-[#888] hover:text-primary transition-colors border-b-2 border-transparent uppercase text-sm"}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+      <GallerySection
+        gallery={gallery}
+        gallerySectionTitle={siteSettings.gallery_section_title}
+        galleryFilterLabels={siteSettings.gallery_filter_labels}
+      />
 
-          {/* Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {gallery.map((item) => (
-              <div key={item.id} className="relative group overflow-hidden bg-muted aspect-square">
-                <Image
-                  src={item.image_url}
-                  alt={item.title}
-                  fill
-                  sizes="(min-width: 768px) 25vw, 50vw"
-                  className="object-cover transition-transform duration-500 group-hover:scale-110"
-                />
-                <div className="absolute inset-0 bg-primary/90 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center text-white text-center p-4">
-                  <h4 className="text-white mt-0 mb-1">{item.title}</h4>
-                  <p className="text-white/80 text-sm uppercase">{item.category}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <QuoteBand />
 
       {/* Team (Profesionales) */}
       <section id="equipo" className="w-full py-16 bg-[#f9f9f9] border-t border-[#e5e5e5]">
@@ -221,7 +194,7 @@ export default async function Home() {
                   />
                 </div>
                 <h3 className="text-xl mb-2 group-hover:text-primary transition-colors">{prof.first_name} {prof.last_name}</h3>
-                <span className="text-[#888888] text-sm block px-4">{prof.role}</span>
+                <span className="text-muted-foreground text-sm block px-4">{prof.role}</span>
               </div>
             ))}
           </div>
@@ -235,7 +208,7 @@ export default async function Home() {
           
           <div className="max-w-4xl mx-auto text-center mt-8">
             <h3 className="text-2xl text-primary font-bold mb-4">{siteSettings.contact_text}</h3>
-            <p className="text-lg text-[#888888] mb-12">
+            <p className="text-lg text-muted-foreground mb-12">
               {siteSettings.contact_body_text}
             </p>
 
