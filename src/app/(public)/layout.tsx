@@ -1,10 +1,17 @@
-import { ReactNode } from "react";
-import { Header } from "@/components/layout/header";
-import { Footer } from "@/components/layout/footer";
-import { getSiteSettings } from "@/lib/api";
+import { ReactNode } from 'react'
+
+import { Footer } from '@/components/layout/footer'
+import { Header } from '@/components/layout/header'
+import { getSiteSettings } from '@/lib/api'
+import { getPublicSocialLinks } from '@/lib/social-links'
 
 export default async function PublicLayout({ children }: { children: ReactNode }) {
-  const settings = await getSiteSettings();
+  const settings = await getSiteSettings()
+  const socialLinks = getPublicSocialLinks({
+    facebook: settings.social_facebook,
+    linkedin: settings.social_linkedin,
+    twitter: settings.social_twitter,
+  })
 
   return (
     <>
@@ -17,8 +24,8 @@ export default async function PublicLayout({ children }: { children: ReactNode }
       <Footer
         brandName={settings.brand_name}
         copyrightText={settings.footer_copyright}
-        socialFacebook={settings.social_facebook}
+        socialLinks={socialLinks}
       />
     </>
-  );
+  )
 }

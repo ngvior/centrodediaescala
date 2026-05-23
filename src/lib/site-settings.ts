@@ -22,6 +22,8 @@ export type PublicSiteSettings = {
   header_navigation: PublicNavigationItem[]
   footer_copyright: string
   social_facebook: string
+  social_linkedin: string
+  social_twitter: string
   home_hero_title: string
   home_hero_subtitle: string
   home_hero_text: string
@@ -73,6 +75,7 @@ export type SiteSettingDefinition = {
   type: SiteSettingType
   description: string
   input: 'input' | 'textarea' | 'json'
+  required?: boolean
 }
 
 export type SiteSettingRow = {
@@ -135,8 +138,27 @@ export const SITE_SETTING_DEFINITIONS = [
     group: 'REDES',
     label: 'Facebook',
     type: 'LINK',
-    description: 'Enlace al perfil de Facebook.',
+    description: 'Enlace al perfil de Facebook. Opcional; vacío no se renderiza.',
     input: 'input',
+    required: false,
+  },
+  {
+    key: 'social_linkedin',
+    group: 'REDES',
+    label: 'LinkedIn',
+    type: 'LINK',
+    description: 'Enlace al perfil de LinkedIn. Opcional; vacío no se renderiza.',
+    input: 'input',
+    required: false,
+  },
+  {
+    key: 'social_twitter',
+    group: 'REDES',
+    label: 'Twitter/X',
+    type: 'LINK',
+    description: 'Enlace al perfil de Twitter/X. Opcional; vacío no se renderiza.',
+    input: 'input',
+    required: false,
   },
   {
     key: 'home_hero_title',
@@ -472,13 +494,17 @@ export const SITE_SETTING_GROUPS: Array<{ group: SiteSettingGroup; title: string
   { group: 'REDES', title: 'Redes' },
 ]
 
-export const REQUIRED_SITE_SETTING_KEYS = SITE_SETTING_DEFINITIONS.map(
-  (definition) => definition.key
-)
+export const REQUIRED_SITE_SETTING_KEYS = SITE_SETTING_DEFINITIONS.filter(
+  (definition) => definition.required !== false
+).map((definition) => definition.key)
 
 const definitionsByKey = new Map(
   SITE_SETTING_DEFINITIONS.map((definition) => [definition.key, definition])
 )
+
+function isRequiredSiteSetting(definition: SiteSettingDefinition) {
+  return definition.required !== false
+}
 
 function assertStringList(key: SiteSettingKey, parsedValue: unknown) {
   if (!Array.isArray(parsedValue) || parsedValue.length === 0) {
@@ -559,7 +585,11 @@ export function parseSiteSettingValue(
   const trimmedValue = value.trim()
 
   if (trimmedValue.length === 0) {
-    throw new Error(`Empty required site setting: ${key}`)
+    if (isRequiredSiteSetting(definition)) {
+      throw new Error(`Empty required site setting: ${key}`)
+    }
+
+    return ''
   }
 
   if (definition.type === 'JSON') {
@@ -581,7 +611,10 @@ export function parsePublicSiteSettings(rows: SiteSettingRow[]): PublicSiteSetti
     const row = rowsByKey.get(definition.key)
 
     if (!row) {
-      return settings
+      return {
+        ...settings,
+        [definition.key]: '',
+      }
     }
 
     return {
@@ -626,7 +659,11 @@ export function buildAdminSiteSettings(rows: SiteSettingRow[]) {
   return SITE_SETTING_DEFINITIONS.map<AdminSiteSetting>((definition) => {
     const row = rowsByKey.get(definition.key)
     const value = row?.setting_value ?? ''
-    const parsedValue = parseSiteSettingValue(definition.key, value, row?.setting_type ?? definition.type)
+    const parsedValue = parseSiteSettingValue(
+      definition.key,
+      value,
+      row?.setting_type ?? definition.type
+    )
 
     return {
       ...definition,

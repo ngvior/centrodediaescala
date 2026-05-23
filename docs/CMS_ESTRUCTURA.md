@@ -71,9 +71,21 @@ Almacena todas las variables de texto, enlaces e imágenes estructurales de la w
 | CONTACTO | `contact_phone` | `+54 11 4635-4207` | TEXT |
 | CONTACTO | `contact_address` | `José Enrique Rodó 5557, CABA` | TEXT |
 | REDES | `social_facebook` | `https://facebook.com/...` | LINK |
+| REDES | `social_linkedin` | `` | LINK |
+| REDES | `social_twitter` | `` | LINK |
 | HOMEPAGE | `home_hero_title` | `Bienvenidos a Escala` | TEXT |
 | HOMEPAGE | `home_hero_bg_image` | `/storage/v1/object/.../banner.jpg` | IMAGE_URL |
 | ABOUT | `about_mission` | `Somos una institución que tiene como finalidad...` | RICHTEXT |
+
+#### Redes sociales públicas
+
+Los enlaces sociales soportados por el pie de página público son:
+
+- `social_facebook`
+- `social_linkedin`
+- `social_twitter` (también acepta URLs de X cuando el dominio es `x.com`)
+
+Estos campos son opcionales: si el valor está vacío, mal formado, usa protocolos inseguros o no coincide con el dominio esperado de la plataforma, el enlace no se muestra. Google+ está deprecado y no se renderiza por defecto; si se define una plataforma de reemplazo debe configurarse con una de las claves soportadas.
 
 ---
 

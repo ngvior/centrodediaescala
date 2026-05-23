@@ -51,7 +51,7 @@ export function InterviewRequestForm({ copy }: { copy: InterviewRequestFormCopy 
     <form action={formAction} className="mt-12 space-y-6 rounded-lg border border-[#e5e5e5] bg-[#f9f9f9] p-6 text-left shadow-sm">
       <div className="text-center">
         <h3 className="mb-2 text-2xl font-bold text-primary">{copy.title}</h3>
-        <p className="text-sm text-[#888888]">
+        <p className="text-sm text-muted-foreground">
           {copy.description}
         </p>
       </div>

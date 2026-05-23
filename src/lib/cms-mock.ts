@@ -4,6 +4,8 @@ export const siteSettings = {
   contact_address: "José Enrique Rodó 5557, CABA",
   contact_schedule: "Lunes a Viernes de 9:30 a 16:30hs",
   social_facebook: "https://www.facebook.com/centrodediaescala",
+  social_linkedin: "",
+  social_twitter: "",
   
   // Homepage
   home_hero_title: "Escala Centro de Día",

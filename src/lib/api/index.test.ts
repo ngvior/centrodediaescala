@@ -99,6 +99,17 @@ describe('public data API', () => {
     }
   })
 
+  it('keeps optional social seed rows aligned with the public social contract', () => {
+    const seedSql = readFileSync(
+      path.join(process.cwd(), 'supabase/seed.sql'),
+      'utf8'
+    )
+
+    expect(seedSql).toContain("'social_facebook'")
+    expect(seedSql).toContain("'social_linkedin'")
+    expect(seedSql).toContain("'social_twitter'")
+  })
+
   it('fails explicitly when Supabase returns a read error', async () => {
     const { client } = createSupabaseClientMock([
       {

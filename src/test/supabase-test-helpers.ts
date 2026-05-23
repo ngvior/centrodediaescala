@@ -120,6 +120,14 @@ function getDefaultSettingValue(settingKey: string, settingType: SiteSettingType
     return JSON.stringify([{ label: 'Inicio', href: '#inicio' }])
   }
 
+  if (settingKey === 'social_facebook') {
+    return 'https://www.facebook.com/centrodediaescala'
+  }
+
+  if (settingKey === 'social_linkedin' || settingKey === 'social_twitter') {
+    return ''
+  }
+
   if (settingType === 'JSON') {
     return JSON.stringify([`db-${settingKey}`])
   }

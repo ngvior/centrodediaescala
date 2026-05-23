@@ -12,6 +12,8 @@ INSERT INTO public.site_settings (setting_group, setting_key, setting_value, set
 ('CONTACTO', 'contact_phone_label', 'Teléfono', 'TEXT', 'Etiqueta visible de la tarjeta de teléfono'),
 ('CONTACTO', 'contact_schedule_label', 'Horarios', 'TEXT', 'Etiqueta visible de la tarjeta de horarios'),
 ('REDES', 'social_facebook', 'https://www.facebook.com/centrodediaescala', 'LINK', 'Enlace al perfil de Facebook'),
+('REDES', 'social_linkedin', '', 'LINK', 'Enlace opcional al perfil de LinkedIn; vacío no se renderiza'),
+('REDES', 'social_twitter', '', 'LINK', 'Enlace opcional al perfil de Twitter/X; vacío no se renderiza'),
 ('HOMEPAGE', 'home_hero_title', 'Escala Centro de Día', 'TEXT', 'Título principal del banner de inicio'),
 ('HOMEPAGE', 'home_hero_subtitle', 'Bienvenidos', 'TEXT', 'Subtítulo del banner de inicio'),
 ('HOMEPAGE', 'home_hero_text', 'Somos una institución que tiene como finalidad brindarle al joven-adulto con discapacidad intelectual, los apoyos necesarios mediante actividades ocupacionales, deportivas, pedagógicas y terapéuticas, planificadas de acuerdo a las capacidades y necesidades de los mismos, con el objetivo de posibilitar el más adecuado desempeño en su vida cotidiana y alcanzar el máximo desarrollo de sus potencialidades, favoreciendo así su integración social.', 'RICHTEXT', 'Texto descriptivo debajo del título principal'),

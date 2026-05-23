@@ -57,7 +57,7 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #888888;
+  --foreground: #333333;
   --card: #ffffff;
   --card-foreground: #333333;
   --popover: #ffffff;
@@ -67,7 +67,7 @@
   --secondary: #49b5e7;
   --secondary-foreground: #ffffff;
   --muted: #f9f9f9;
-  --muted-foreground: #888888;
+  --muted-foreground: #333333;
   --accent: #f9f9f9;
   --accent-foreground: #333333;
   --destructive: #ff205e;

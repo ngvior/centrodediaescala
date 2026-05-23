@@ -1,4 +1,5 @@
 "use client";
+import { useState, type MouseEvent } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -18,7 +19,9 @@ export function Header({
   brandSubtitle: string
   navigation: NavigationItem[]
 }) {
-  const scrollTo = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const scrollTo = (e: MouseEvent<HTMLAnchorElement>, href: string) => {
     e.preventDefault();
     const targetId = href.replace('#', '');
     const element = document.getElementById(targetId);
@@ -60,7 +63,7 @@ export function Header({
         </div>
 
         {/* Mobile Navigation */}
-        <Sheet>
+        <Sheet open={mobileMenuOpen} onOpenChange={(open) => setMobileMenuOpen(open)}>
           <SheetTrigger className="md:hidden" render={<Button variant="ghost" size="icon" />}>
             <Menu className="h-6 w-6 text-foreground" />
             <span className="sr-only">Abrir menú</span>
@@ -73,7 +76,7 @@ export function Header({
                   href={item.href}
                   onClick={(e) => {
                     scrollTo(e, item.href);
-                    // Opcional: cerrar el menú al clickear, pero require state.
+                    setMobileMenuOpen(false);
                   }}
                   className="text-lg font-bold uppercase transition-colors hover:text-primary text-muted-foreground"
                 >
