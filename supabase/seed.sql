@@ -3,7 +3,7 @@
 INSERT INTO public.site_settings (setting_group, setting_key, setting_value, setting_type, description) VALUES
 ('MARCA_NAV', 'brand_name', 'ESCALA', 'TEXT', 'Nombre visible en el encabezado y pie de página'),
 ('MARCA_NAV', 'brand_subtitle', 'Centro de Día', 'TEXT', 'Texto secundario visible junto a la marca'),
-('MARCA_NAV', 'header_navigation', $$[{"label":"Inicio","href":"#inicio"},{"label":"Nuestra Institución","href":"#institucion"},{"label":"Actividades","href":"#actividades"},{"label":"Galería","href":"#galeria"},{"label":"Equipo","href":"#equipo"},{"label":"Contacto","href":"#contacto"}]$$, 'JSON', 'Lista de enlaces del encabezado con label y href'),
+('MARCA_NAV', 'header_navigation', $$[{"label":"Inicio","href":"#top_content"},{"label":"Institucional","href":"#service"},{"label":"Actividades","href":"#work_outer"},{"label":"Profesionales","href":"#team"},{"label":"Escala / Camina","href":"camina.html"},{"label":"Contacto","href":"#contact"}]$$, 'JSON', 'Lista de enlaces del encabezado con label y href'),
 ('MARCA_NAV', 'footer_copyright', 'Todos los derechos reservados', 'TEXT', 'Texto legal visible en el pie de página'),
 ('CONTACTO', 'contact_phone', '+54 11 4635-4207', 'TEXT', 'Teléfono principal de contacto'),
 ('CONTACTO', 'contact_address', 'José Enrique Rodó 5557, CABA', 'TEXT', 'Dirección de la institución'),
