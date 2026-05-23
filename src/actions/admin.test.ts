@@ -43,6 +43,12 @@ import {
 	getAdminInterviewRequests,
 	getAdminSiteSettings,
 	getAdminProfessionals,
+	getAdminObjectives,
+	createHomeObjective,
+	updateHomeObjective,
+	deleteHomeObjective,
+	toggleHomeObjective,
+	updateHomeObjectiveOrder,
 	toggleActivity,
 	toggleGalleryItem,
 	updateActivity,
@@ -134,6 +140,25 @@ describe("admin actions", () => {
 			actionMocks.createAdminClient.mock.invocationCallOrder[0],
 		);
 		expect(client.from).toHaveBeenCalledWith("professionals");
+	});
+
+	it("authenticates and uses the admin Supabase client before reading home objectives", async () => {
+		const { client } = createSupabaseClientMock([
+			{
+				table: "home_objectives",
+				response: { data: [], error: null },
+			},
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+
+		await expect(getAdminObjectives()).resolves.toEqual([]);
+
+		expect(actionMocks.requireAdmin).toHaveBeenCalledTimes(1);
+		expect(actionMocks.createAdminClient).toHaveBeenCalledTimes(1);
+		expect(actionMocks.requireAdmin.mock.invocationCallOrder[0]).toBeLessThan(
+			actionMocks.createAdminClient.mock.invocationCallOrder[0],
+		);
+		expect(client.from).toHaveBeenCalledWith("home_objectives");
 	});
 
 	it("does not create a Supabase admin client when admin auth fails", async () => {
@@ -786,6 +811,106 @@ describe("admin actions", () => {
 			expect(actionMocks.deleteImage).toHaveBeenCalledWith(
 				"https://supabase.co/storage/v1/object/public/cms-images/professionals/uuid-old.png",
 			);
+		});
+	});
+
+	describe("Home Objectives Actions", () => {
+		it("creates a home objective successfully and revalidates", async () => {
+			const { client, queries } = createSupabaseClientMock([
+				{ table: "home_objectives", response: { data: null, error: null } },
+			]);
+			actionMocks.createAdminClient.mockReturnValue(client);
+
+			const formData = createFormData({
+				title: "Nuevo Objetivo",
+				description: "Descripción detallada",
+				icon: "fa-star",
+				order_index: 3,
+			});
+
+			await createHomeObjective(formData);
+
+			expect(actionMocks.requireAdmin).toHaveBeenCalledTimes(1);
+			expect(actionMocks.createAdminClient).toHaveBeenCalledTimes(1);
+			expect(queries[0].insert).toHaveBeenCalledWith({
+				title: "Nuevo Objetivo",
+				description: "Descripción detallada",
+				icon: "fa-star",
+				is_active: true,
+				order_index: 3,
+			});
+			expect(actionMocks.revalidatePath).toHaveBeenCalledWith(
+				"/admin/dashboard",
+			);
+			expect(actionMocks.revalidatePath).toHaveBeenCalledWith(
+				"/admin/objetivos",
+			);
+			expect(actionMocks.revalidatePath).toHaveBeenCalledWith("/");
+		});
+
+		it("updates an existing home objective and revalidates", async () => {
+			const { client, queries } = createSupabaseClientMock([
+				{ table: "home_objectives", response: { data: null, error: null } },
+			]);
+			actionMocks.createAdminClient.mockReturnValue(client);
+
+			const formData = createFormData({
+				id: "objective-id",
+				title: "Objetivo Editado",
+				description: "Nueva descripción",
+				icon: "fa-check",
+				order_index: 1,
+				is_active: "on",
+			});
+
+			await updateHomeObjective(formData);
+
+			expect(queries[0].update).toHaveBeenCalledWith({
+				title: "Objetivo Editado",
+				description: "Nueva descripción",
+				icon: "fa-check",
+				is_active: true,
+				order_index: 1,
+			});
+			expect(queries[0].eq).toHaveBeenCalledWith("id", "objective-id");
+		});
+
+		it("deletes a home objective and revalidates", async () => {
+			const { client, queries } = createSupabaseClientMock([
+				{ table: "home_objectives", response: { data: null, error: null } },
+			]);
+			actionMocks.createAdminClient.mockReturnValue(client);
+
+			await deleteHomeObjective(createFormData({ id: "objective-id" }));
+
+			expect(queries[0].delete).toHaveBeenCalledTimes(1);
+			expect(queries[0].eq).toHaveBeenCalledWith("id", "objective-id");
+		});
+
+		it("toggles is_active on home objectives", async () => {
+			const { client, queries } = createSupabaseClientMock([
+				{ table: "home_objectives", response: { data: null, error: null } },
+			]);
+			actionMocks.createAdminClient.mockReturnValue(client);
+
+			await toggleHomeObjective(
+				createFormData({ id: "objective-id", is_active: "true" }),
+			);
+
+			expect(queries[0].update).toHaveBeenCalledWith({ is_active: true });
+		});
+
+		it("updates order_index on home objectives", async () => {
+			const { client, queries } = createSupabaseClientMock([
+				{ table: "home_objectives", response: { data: null, error: null } },
+			]);
+			actionMocks.createAdminClient.mockReturnValue(client);
+
+			await updateHomeObjectiveOrder(
+				createFormData({ id: "objective-id", order_index: 5 }),
+			);
+
+			expect(queries[0].update).toHaveBeenCalledWith({ order_index: 5 });
 		});
 	});
 });

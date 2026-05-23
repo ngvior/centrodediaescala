@@ -44,6 +44,15 @@ export type AdminGalleryItem = {
 	order_index: number;
 };
 
+export type AdminHomeObjective = {
+	id: string;
+	title: string;
+	description: string;
+	icon: string | null;
+	is_active: boolean;
+	order_index: number;
+};
+
 export type InterviewRequestStatus =
 	| "PENDING"
 	| "CONTACTED"
@@ -220,6 +229,21 @@ function revalidateSiteSettingPaths() {
 function revalidateInterviewCrmPaths() {
 	revalidatePath("/admin/dashboard");
 	revalidatePath("/admin/entrevistas");
+}
+
+export async function getAdminObjectives(): Promise<AdminHomeObjective[]> {
+	await requireAdmin();
+
+	const supabase = createAdminClient();
+	const response = await supabase
+		.from("home_objectives")
+		.select("id, title, description, icon, is_active, order_index")
+		.order("order_index", { ascending: true });
+
+	return assertReadSucceeded(
+		"home_objectives",
+		response as SupabaseResponse<AdminHomeObjective[]>,
+	);
 }
 
 export async function getAdminProfessionals(): Promise<AdminProfessional[]> {
@@ -801,4 +825,92 @@ export async function deleteGalleryItem(formData: FormData) {
 	}
 
 	revalidateGalleryPaths();
+}
+
+function revalidateObjectivePaths() {
+	revalidatePath("/admin/dashboard");
+	revalidatePath("/admin/objetivos");
+	revalidatePath("/");
+}
+
+export async function createHomeObjective(formData: FormData) {
+	await requireAdmin();
+
+	const supabase = createAdminClient();
+	const { error } = await supabase.from("home_objectives").insert({
+		title: getRequiredString(formData, "title"),
+		description: getRequiredString(formData, "description"),
+		icon: getOptionalString(formData, "icon") ?? "fa-check",
+		is_active: true,
+		order_index: getOptionalNumber(formData, "order_index"),
+	});
+
+	assertMutationSucceeded("home_objectives", error);
+	revalidateObjectivePaths();
+}
+
+export async function updateHomeObjective(formData: FormData) {
+	await requireAdmin();
+
+	const id = getRequiredString(formData, "id");
+	const supabase = createAdminClient();
+	const { error } = await supabase
+		.from("home_objectives")
+		.update({
+			title: getRequiredString(formData, "title"),
+			description: getRequiredString(formData, "description"),
+			icon: getOptionalString(formData, "icon") ?? "fa-check",
+			is_active: formData.get("is_active") === "on",
+			order_index: getOptionalNumber(formData, "order_index"),
+		})
+		.eq("id", id);
+
+	assertMutationSucceeded("home_objectives", error);
+	revalidateObjectivePaths();
+}
+
+export async function deleteHomeObjective(formData: FormData) {
+	await requireAdmin();
+
+	const id = getRequiredString(formData, "id");
+	const supabase = createAdminClient();
+	const { error } = await supabase
+		.from("home_objectives")
+		.delete()
+		.eq("id", id);
+
+	assertMutationSucceeded("home_objectives", error);
+	revalidateObjectivePaths();
+}
+
+export async function toggleHomeObjective(formData: FormData) {
+	await requireAdmin();
+
+	const id = getRequiredString(formData, "id");
+	const isActive = getCheckboxBoolean(formData, "is_active");
+
+	const supabase = createAdminClient();
+	const { error } = await supabase
+		.from("home_objectives")
+		.update({ is_active: isActive })
+		.eq("id", id);
+
+	assertMutationSucceeded("home_objectives", error);
+	revalidateObjectivePaths();
+}
+
+export async function updateHomeObjectiveOrder(formData: FormData) {
+	await requireAdmin();
+
+	const id = getRequiredString(formData, "id");
+	const orderIndex = getOptionalNumber(formData, "order_index");
+
+	const supabase = createAdminClient();
+	const { error } = await supabase
+		.from("home_objectives")
+		.update({ order_index: orderIndex })
+		.eq("id", id);
+
+	assertMutationSucceeded("home_objectives", error);
+	revalidateObjectivePaths();
 }
