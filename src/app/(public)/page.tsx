@@ -8,6 +8,8 @@ import {
 import { InterviewRequestForm } from "@/components/interview-request-form";
 import { GallerySection } from "@/components/sections/GallerySection";
 import { QuoteBand } from "@/components/sections/QuoteBand";
+import { AnimateOnScroll } from "@/components/AnimateOnScroll";
+import { ObjectiveCard } from "@/components/sections/ObjectiveCard";
 import { Check, CheckCircle2, MapPin, Phone, Clock } from "lucide-react";
 import Image from "next/image";
 
@@ -123,7 +125,10 @@ export default async function Home() {
 				/>
 				<div className="container px-4 md:px-6 mx-auto relative z-10 py-16 md:py-32">
 					<div className="grid md:grid-cols-2 gap-8">
-						<div className="bg-white/80 md:bg-transparent p-6 rounded-lg animate-flip-in-y">
+						<AnimateOnScroll
+							className="bg-white/80 md:bg-transparent p-6 rounded-lg"
+							animationClass="animate-flip-in-y"
+						>
 							<h3 className="text-[25px] text-[#222222] font-semibold mb-2 font-dosis normal-case tracking-normal">
 								{siteSettings.home_hero_subtitle}
 							</h3>
@@ -139,7 +144,7 @@ export default async function Home() {
 							>
 								{siteSettings.home_hero_cta_label}
 							</a>
-						</div>
+						</AnimateOnScroll>
 						{/* The right side in legacy is empty, leaving space for the background image */}
 						<div className="hidden md:block"></div>
 					</div>
@@ -165,29 +170,13 @@ export default async function Home() {
 							const delay = `${index * 150}ms`;
 
 							return (
-								<div key={obj.id} className="text-center group">
-									<div
-										className={`mx-auto w-[90px] h-[90px] rounded-full border-2 ${colors.borderClass} ${colors.textClass} flex items-center justify-center mb-6 transition-all duration-300 ${colors.hoverBg} hover:text-white hover:border-transparent animate-legacy-zoom-in`}
-										style={{ animationDelay: delay, animationFillMode: "both" }}
-									>
-										<Check
-											className="h-8 w-8"
-											style={{ color: "currentColor" }}
-										/>
-									</div>
-									<h3
-										className="mb-4 text-xl font-bold animate-legacy-fade-in-up"
-										style={{ animationDelay: delay, animationFillMode: "both" }}
-									>
-										{obj.title}
-									</h3>
-									<p
-										className="text-[16px] leading-[26px] text-escala-gray animate-legacy-fade-in-down"
-										style={{ animationDelay: delay, animationFillMode: "both" }}
-									>
-										{obj.description}
-									</p>
-								</div>
+								<ObjectiveCard
+									key={obj.id}
+									title={obj.title}
+									description={obj.description}
+									delay={delay}
+									colors={colors}
+								/>
 							);
 						})}
 					</div>
