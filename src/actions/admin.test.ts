@@ -78,6 +78,7 @@ function createActivityFormData(
 		title: "Taller de arte",
 		description: "Actividad expresiva semanal",
 		category: "Talleres",
+		icon: "music",
 		image_url: "/arte.jpg",
 		schedule_info: "Lunes 10 h",
 		order_index: 2,
@@ -215,6 +216,9 @@ describe("admin actions", () => {
 			actionMocks.createAdminClient.mock.invocationCallOrder[0],
 		);
 		expect(client.from).toHaveBeenCalledWith("activities");
+		expect(queries[0].select).toHaveBeenCalledWith(
+			"id, title, description, category, icon, image_url, schedule_info, is_active, order_index",
+		);
 		expect(queries[0].order).toHaveBeenCalledWith("order_index", {
 			ascending: true,
 		});
@@ -486,6 +490,7 @@ describe("admin actions", () => {
 			expect.objectContaining({
 				title: "Taller de arte",
 				description: "Actividad expresiva semanal",
+				icon: "music",
 				is_active: true,
 				order_index: 2,
 			}),
@@ -495,6 +500,22 @@ describe("admin actions", () => {
 			"/admin/actividades",
 		);
 		expect(actionMocks.revalidatePath).toHaveBeenCalledWith("/admin/dashboard");
+	});
+
+	it("defaults unsupported activity icons to heart before creating", async () => {
+		const { client, queries } = createSupabaseClientMock([
+			{
+				table: "activities",
+				response: { data: null, error: null },
+			},
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+
+		await createActivity(createActivityFormData({ icon: "<script>" }));
+
+		expect(queries[0].insert).toHaveBeenCalledWith(
+			expect.objectContaining({ icon: "heart" }),
+		);
 	});
 
 	it("updates, toggles, orders, and deletes activities through the admin client", async () => {
@@ -511,7 +532,11 @@ describe("admin actions", () => {
 		actionMocks.createAdminClient.mockReturnValue(client);
 
 		await updateActivity(
-			createActivityFormData({ id: "activity-id", is_active: null }),
+			createActivityFormData({
+				id: "activity-id",
+				icon: "pencil",
+				is_active: null,
+			}),
 		);
 		await toggleActivity(
 			createFormData({ id: "activity-id", is_active: "true" }),
@@ -524,7 +549,11 @@ describe("admin actions", () => {
 		expect(actionMocks.requireAdmin).toHaveBeenCalledTimes(4);
 		expect(actionMocks.createAdminClient).toHaveBeenCalledTimes(4);
 		expect(queries[0].update).toHaveBeenCalledWith(
-			expect.objectContaining({ title: "Taller de arte", is_active: false }),
+			expect.objectContaining({
+				title: "Taller de arte",
+				icon: "pencil",
+				is_active: false,
+			}),
 		);
 		expect(queries[1].update).toHaveBeenCalledWith({ is_active: true });
 		expect(queries[2].update).toHaveBeenCalledWith({ order_index: 7 });
@@ -536,6 +565,25 @@ describe("admin actions", () => {
 		);
 		expect(actionMocks.revalidatePath).toHaveBeenCalledWith("/admin/dashboard");
 		expect(actionMocks.revalidatePath).toHaveBeenCalledWith("/");
+	});
+
+	it("defaults unsupported activity icons to heart before updating", async () => {
+		const { client, queries } = createSupabaseClientMock([
+			{ table: "activities", response: { data: null, error: null } },
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+
+		await updateActivity(
+			createActivityFormData({
+				id: "activity-id",
+				icon: "unknown",
+				is_active: null,
+			}),
+		);
+
+		expect(queries[0].update).toHaveBeenCalledWith(
+			expect.objectContaining({ icon: "heart" }),
+		);
 	});
 
 	it("rejects invalid activity payloads before creating the admin client", async () => {

@@ -30,6 +30,7 @@ export type Activity = {
 	title: string;
 	description: string;
 	category: string;
+	icon: string;
 	image_url: string | null;
 	schedule_info: string | null;
 };
@@ -118,7 +119,7 @@ export async function getActivities(): Promise<Activity[]> {
 	const supabase = await createClient({ anon: true });
 	const response = await supabase
 		.from("activities")
-		.select("id, title, description, category, image_url, schedule_info")
+		.select("id, title, description, category, icon, image_url, schedule_info")
 		.eq("is_active", true)
 		.order("order_index", { ascending: true });
 

@@ -29,6 +29,7 @@ export type AdminActivity = {
 	title: string;
 	description: string;
 	category: string;
+	icon: ActivityIconValue;
 	image_url: string | null;
 	schedule_info: string | null;
 	is_active: boolean;
@@ -103,6 +104,16 @@ const INTERVIEW_REQUEST_STATUSES: InterviewRequestStatus[] = [
 	"CONFIRMED",
 	"REJECTED",
 ];
+
+const ACTIVITY_ICON_VALUES = [
+	"heart",
+	"thumbs-up",
+	"music",
+	"shop",
+	"pencil",
+] as const;
+
+type ActivityIconValue = (typeof ACTIVITY_ICON_VALUES)[number];
 
 const MAX_INTERVIEW_NOTES_LENGTH = 2000;
 
@@ -204,6 +215,22 @@ function getCheckboxBoolean(
 	return value === "on" || value === "true" || value === "1";
 }
 
+function normalizeActivityIcon(
+	value: FormDataEntryValue | null,
+): ActivityIconValue {
+	if (typeof value !== "string") {
+		return "heart";
+	}
+
+	const trimmed = value.trim();
+
+	if (ACTIVITY_ICON_VALUES.includes(trimmed as ActivityIconValue)) {
+		return trimmed as ActivityIconValue;
+	}
+
+	return "heart";
+}
+
 function revalidateProfessionalPaths() {
 	revalidatePath("/admin/dashboard");
 	revalidatePath("/admin/profesionales");
@@ -271,7 +298,7 @@ export async function getAdminActivities(): Promise<AdminActivity[]> {
 	const response = await supabase
 		.from("activities")
 		.select(
-			"id, title, description, category, image_url, schedule_info, is_active, order_index",
+			"id, title, description, category, icon, image_url, schedule_info, is_active, order_index",
 		)
 		.order("order_index", { ascending: true })
 		.order("title", { ascending: true });
@@ -576,6 +603,7 @@ export async function createActivity(formData: FormData) {
 		title: getRequiredString(formData, "title"),
 		description: getRequiredString(formData, "description"),
 		category: getRequiredString(formData, "category"),
+		icon: normalizeActivityIcon(formData.get("icon")),
 		image_url: imageUrl,
 		schedule_info: getOptionalString(formData, "schedule_info"),
 		is_active: getCheckboxBoolean(formData, "is_active", true),
@@ -613,6 +641,7 @@ export async function updateActivity(formData: FormData) {
 		title: getRequiredString(formData, "title"),
 		description: getRequiredString(formData, "description"),
 		category: getRequiredString(formData, "category"),
+		icon: normalizeActivityIcon(formData.get("icon")),
 		image_url: imageUrl,
 		schedule_info: getOptionalString(formData, "schedule_info"),
 		is_active: getCheckboxBoolean(formData, "is_active"),
