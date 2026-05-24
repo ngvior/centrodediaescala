@@ -1,16 +1,31 @@
+import { createElement, type ReactNode } from "react";
+
 import {
 	getActivities,
 	getGalleryItems,
 	getHomeObjectives,
 	getProfessionals,
 	getSiteSettings,
+	type Activity,
 } from "@/lib/api";
 import { InterviewRequestForm } from "@/components/interview-request-form";
 import { GallerySection } from "@/components/sections/GallerySection";
 import { QuoteBand } from "@/components/sections/QuoteBand";
 import { AnimateOnScroll } from "@/components/AnimateOnScroll";
 import { ObjectiveCard } from "@/components/sections/ObjectiveCard";
-import { Check, CheckCircle2, MapPin, Phone, Clock } from "lucide-react";
+import {
+	Check,
+	CheckCircle2,
+	Clock,
+	Heart,
+	MapPin,
+	Music,
+	Pencil,
+	Phone,
+	Store,
+	ThumbsUp,
+	type LucideIcon,
+} from "lucide-react";
 import Image from "next/image";
 
 function getObjectiveColor(title: string) {
@@ -77,6 +92,73 @@ function getObjectiveColor(title: string) {
 		textClass: "text-primary",
 		hoverBg: "hover:bg-primary",
 	};
+}
+
+const ACTIVITY_ICON_COLOR = "#1593D7";
+
+const ACTIVITY_ICON_MAP: Record<string, LucideIcon> = {
+	"thumbs-up": ThumbsUp,
+	music: Music,
+	heart: Heart,
+	shop: Store,
+	pencil: Pencil,
+};
+
+const BOLD_SEGMENT_RE = /\*\*([^*\r\n]+?)\*\*/g;
+
+function getActivityIcon(icon: string | null | undefined): LucideIcon {
+	if (!icon) {
+		return Heart;
+	}
+
+	return ACTIVITY_ICON_MAP[icon] ?? Heart;
+}
+
+function renderDescriptionWithBold(text: string): ReactNode[] {
+	const nodes: ReactNode[] = [];
+	let lastIndex = 0;
+
+	for (const match of text.matchAll(BOLD_SEGMENT_RE)) {
+		const matchIndex = match.index ?? 0;
+
+		if (matchIndex > lastIndex) {
+			nodes.push(text.slice(lastIndex, matchIndex));
+		}
+
+		nodes.push(
+			<strong key={`bold-${matchIndex}`} className="font-semibold text-inherit">
+				{match[1]}
+			</strong>,
+		);
+
+		lastIndex = matchIndex + match[0].length;
+	}
+
+	if (lastIndex < text.length) {
+		nodes.push(text.slice(lastIndex));
+	}
+
+	return nodes;
+}
+
+function ActivitySummary({ activity }: { activity: Activity }) {
+	return (
+		<div className="flex gap-6">
+			<div className="w-[60px] h-[60px] bg-white rounded-full shrink-0 flex items-center justify-center shadow-sm mt-1 border border-[#e5e5e5]">
+				{createElement(getActivityIcon(activity.icon), {
+					className: "h-8 w-8",
+					color: ACTIVITY_ICON_COLOR,
+					"aria-hidden": "true",
+				})}
+			</div>
+			<div>
+				<h3 className="text-xl mb-3">{activity.title}</h3>
+				<p className="text-sm leading-[24px] text-[#888888] whitespace-pre-line">
+					{renderDescriptionWithBold(activity.description)}
+				</p>
+			</div>
+		</div>
+	);
 }
 
 export default async function Home() {
@@ -230,37 +312,14 @@ export default async function Home() {
 						{/* Left Column */}
 						<div className="space-y-12">
 							{leftActivities.map((act) => (
-								<div key={act.id} className="flex gap-6">
-									<div className="w-[60px] h-[60px] bg-primary rounded-full shrink-0 flex items-center justify-center text-white shadow-sm mt-1">
-										{/* Placeholder for legacy icons (thumbs-up, music, heart) */}
-										<div className="w-8 h-8 rounded-full border-2 border-white/50" />
-									</div>
-									<div>
-										<h3 className="text-xl mb-3">{act.title}</h3>
-										<p
-											className="text-sm"
-											dangerouslySetInnerHTML={{ __html: act.description }}
-										/>
-									</div>
-								</div>
+								<ActivitySummary key={act.id} activity={act} />
 							))}
 						</div>
 
 						{/* Right Column */}
 						<div className="space-y-12">
 							{rightActivities.map((act) => (
-								<div key={act.id} className="flex gap-6">
-									<div className="w-[60px] h-[60px] bg-primary rounded-full shrink-0 flex items-center justify-center text-white shadow-sm mt-1">
-										<div className="w-8 h-8 rounded-full border-2 border-white/50" />
-									</div>
-									<div>
-										<h3 className="text-xl mb-3">{act.title}</h3>
-										<p
-											className="text-sm"
-											dangerouslySetInnerHTML={{ __html: act.description }}
-										/>
-									</div>
-								</div>
+								<ActivitySummary key={act.id} activity={act} />
 							))}
 						</div>
 					</div>

@@ -25,10 +25,25 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Edit2, Plus, Trash2 } from "lucide-react";
 
+const ACTIVITY_ICON_OPTIONS = [
+	{ value: "heart", label: "Corazón" },
+	{ value: "thumbs-up", label: "Pulgar arriba" },
+	{ value: "music", label: "Música" },
+	{ value: "shop", label: "Tienda / ocupacional" },
+	{ value: "pencil", label: "Lápiz" },
+] as const;
+
+function getActivityIconLabel(icon: string) {
+	return (
+		ACTIVITY_ICON_OPTIONS.find((option) => option.value === icon)?.label ?? icon
+	);
+}
+
 type ActivityFieldsDefaults = {
 	title: string;
 	description: string;
 	category: string;
+	icon: string;
 	image_url: string | null;
 	schedule_info: string | null;
 	order_index: number;
@@ -45,6 +60,22 @@ function ActivityFields({ defaults }: { defaults?: ActivityFieldsDefaults }) {
 				<div className="space-y-2">
 					<label className="text-sm font-medium">Categoría</label>
 					<Input name="category" defaultValue={defaults?.category} required />
+				</div>
+			</div>
+			<div className="grid gap-4 md:grid-cols-2">
+				<div className="space-y-2">
+					<label className="text-sm font-medium">Icono</label>
+					<select
+						name="icon"
+						defaultValue={defaults?.icon ?? "heart"}
+						className="h-10 w-full rounded-lg border border-input bg-white px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+					>
+						{ACTIVITY_ICON_OPTIONS.map((option) => (
+							<option key={option.value} value={option.value}>
+								{option.label}
+							</option>
+						))}
+					</select>
 				</div>
 			</div>
 			<div className="space-y-2">
@@ -141,6 +172,7 @@ export default async function ActividadesPage() {
 							<TableRow>
 								<TableHead>Actividad</TableHead>
 								<TableHead>Categoría</TableHead>
+								<TableHead>Icono</TableHead>
 								<TableHead>Orden</TableHead>
 								<TableHead>Estado</TableHead>
 								<TableHead className="text-right">Acciones</TableHead>
@@ -156,6 +188,7 @@ export default async function ActividadesPage() {
 										</div>
 									</TableCell>
 									<TableCell>{activity.category}</TableCell>
+									<TableCell>{getActivityIconLabel(activity.icon)}</TableCell>
 									<TableCell>{activity.order_index}</TableCell>
 									<TableCell>
 										<span
@@ -234,7 +267,7 @@ export default async function ActividadesPage() {
 							{activities.length === 0 ? (
 								<TableRow>
 									<TableCell
-										colSpan={5}
+										colSpan={6}
 										className="py-8 text-center text-muted-foreground"
 									>
 										No hay actividades cargadas.
