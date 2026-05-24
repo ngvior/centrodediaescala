@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS public.activities (
   title TEXT NOT NULL UNIQUE,
   description TEXT NOT NULL,
   category TEXT NOT NULL,
+  icon TEXT NOT NULL DEFAULT 'heart',
   image_url TEXT,
   schedule_info TEXT,
   is_active BOOLEAN NOT NULL DEFAULT true,
