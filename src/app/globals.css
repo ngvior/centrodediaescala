@@ -201,4 +201,8 @@
   }
 }
 
+.rounded-button {
+  border-radius: 10px; /* Adjust the value for more or less roundness */
+}
+
 

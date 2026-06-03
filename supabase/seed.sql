@@ -8,10 +8,13 @@ INSERT INTO public.site_settings (setting_group, setting_key, setting_value, set
 ('CONTACTO', 'contact_phone', '+54 11 4635-4207', 'TEXT', 'Teléfono principal de contacto'),
 ('CONTACTO', 'contact_address', 'José Enrique Rodó 5557, CABA', 'TEXT', 'Dirección de la institución'),
 ('CONTACTO', 'contact_schedule', 'Lunes a Viernes de 9:30 a 16:30hs', 'TEXT', 'Horario de atención al público'),
+('CONTACTO', 'contact_email', 'info@centrodediaescala.org', 'TEXT', 'Email principal de contacto'),
 ('CONTACTO', 'contact_address_label', 'Dirección', 'TEXT', 'Etiqueta visible de la tarjeta de dirección'),
 ('CONTACTO', 'contact_phone_label', 'Teléfono', 'TEXT', 'Etiqueta visible de la tarjeta de teléfono'),
 ('CONTACTO', 'contact_schedule_label', 'Horarios', 'TEXT', 'Etiqueta visible de la tarjeta de horarios'),
+('CONTACTO', 'contact_email_label', 'Email', 'TEXT', 'Etiqueta visible de la tarjeta de email'),
 ('REDES', 'social_facebook', 'https://www.facebook.com/centrodediaescala', 'LINK', 'Enlace al perfil de Facebook'),
+('REDES', 'social_instagram', 'https://www.instagram.com/centrodediaescala/', 'LINK', 'Enlace al perfil de Instagram'),
 ('REDES', 'social_linkedin', '', 'LINK', 'Enlace opcional al perfil de LinkedIn; vacío no se renderiza'),
 ('REDES', 'social_twitter', '', 'LINK', 'Enlace opcional al perfil de Twitter/X; vacío no se renderiza'),
 ('HOMEPAGE', 'home_hero_title', 'Escala Centro de Día', 'TEXT', 'Título principal del banner de inicio'),
@@ -32,7 +35,7 @@ INSERT INTO public.site_settings (setting_group, setting_key, setting_value, set
 ('ABOUT', 'about_requirements_items', $$["Mayor a 25 años","Fotocopia de DNI","Fotocopia de Certificado de Discapacidad"]$$, 'JSON', 'Lista visible de requisitos de inscripción'),
 ('ACTIVIDADES', 'activities_section_title', 'Actividades', 'TEXT', 'Título de la sección actividades'),
 ('GALERIA', 'gallery_section_title', 'Galería', 'TEXT', 'Título de la sección galería'),
-('GALERIA', 'gallery_filter_labels', $$["Todas","Integración","Terapéutico","Ocupacional","Nuestras Manos","Deportivo","Terapia Canina"]$$, 'JSON', 'Lista de etiquetas visibles para filtros de galería'),
+('GALERIA', 'gallery_filter_labels', $$["Todas","Deporte","Integración","Terapias Ocupacionales","Manos que Hacen","Terapia Canina"]$$, 'JSON', 'Lista de etiquetas visibles para filtros de galería'),
 ('EQUIPO', 'professionals_section_title', 'Profesionales', 'TEXT', 'Título de la sección profesionales'),
 ('EQUIPO', 'professionals_subtitle', 'Conocé a nuestro equipo interdisciplinario.', 'TEXT', 'Subtítulo de la sección profesionales'),
 ('CONTACTO', 'contact_title', 'Los esperamos', 'TEXT', 'Título de contacto'),
@@ -100,20 +103,29 @@ ON CONFLICT (title) DO UPDATE SET
   order_index = EXCLUDED.order_index,
   is_active = true;
 
-INSERT INTO public.gallery_items (title, category, image_url, order_index) VALUES
-('Actividades Deportivas', 'Deportivo', '/camina/2016/1.jpg', 1),
-('Natación', 'Deportivo', '/camina/2016/2.jpg', 2),
-('Taller', 'Ocupacional', '/camina/2016/3.jpg', 3),
-('Arte', 'Nuestras Manos', '/camina/2016/4.jpg', 4),
-('Terapia', 'Terapéutico', '/camina/2016/5.jpg', 5),
-('Integración', 'Integración', '/camina/2016/6.jpg', 6),
-('Canina', 'Terapia Canina', '/camina/2016/7.jpg', 7),
-('Equipo', 'Todas', '/camina/2016/8.jpg', 8)
-ON CONFLICT (image_url) DO UPDATE SET
-  title = EXCLUDED.title,
-  category = EXCLUDED.category,
-  order_index = EXCLUDED.order_index,
-  is_active = true;
+DELETE FROM public.gallery_items;
+
+INSERT INTO public.gallery_items (title, category, image_url, order_index, is_active) VALUES
+('Actividades Deportivas', 'Deporte', '/galeria/1.jpg', 1, true),
+('Natación', 'Deporte', '/galeria/2.jpg', 2, true),
+('Actividades con la Comunidad', 'Integración', '/galeria/3.jpg', 3, true),
+('Salidas Recreativas', 'Integración', '/galeria/4.jpg', 4, true),
+('Taller de Artesanías', 'Terapias Ocupacionales', '/galeria/5.jpg', 5, true),
+('Taller de Creaciones en Papel', 'Manos que Hacen', '/galeria/6.jpg', 6, true),
+('Creatividad', 'Manos que Hacen', '/galeria/7.jpg', 7, true),
+('Tecnología', 'Terapias Ocupacionales', '/galeria/8.jpg', 8, true),
+('Taller de Creación de Máscaras de Teatro', 'Terapias Ocupacionales', '/galeria/9.jpg', 9, true),
+('Cocina', 'Terapias Ocupacionales', '/galeria/10.jpg', 10, true),
+('Música', 'Terapias Ocupacionales', '/galeria/11.jpg', 11, true),
+('Expresión Corporal y Teatro', 'Terapias Ocupacionales', '/galeria/12.jpg', 12, true),
+('Participación en Ferias', 'Integración', '/galeria/13.jpg', 13, true),
+('Serigrafía', 'Terapias Ocupacionales', '/galeria/14.jpg', 14, true),
+('Taller de Pintura Sobre Tela', 'Manos que Hacen', '/galeria/15.jpg', 15, true),
+('Deporte al Aire Libre', 'Deporte', '/galeria/16.jpg', 16, true),
+('Terapia Asistida con Animales', 'Terapia Canina', '/galeria/17.jpg', 17, true),
+('Terapia Asistida con Animales', 'Terapia Canina', '/galeria/18.jpg', 18, true),
+('Terapia Asistida con Animales', 'Terapia Canina', '/galeria/19.jpg', 19, true),
+('Terapia Asistida con Animales', 'Terapia Canina', '/galeria/20.jpg', 20, true);
 
 INSERT INTO public.events (title, slug, content, event_date, cover_image_url, is_published) VALUES
 ('Caminata & Kermesse Anual', 'caminata-kermesse', 'El evento consistirá en la realización de la edición de Escala/Camina. La misma tiene como principal objetivo canalizar el acompañamiento de la sociedad, al tiempo que sensibiliza y contribuye a una sociedad más justa, equitativa, solidaria e inclusiva.', 'Octubre', '/camina/camina_main.jpg', true)
