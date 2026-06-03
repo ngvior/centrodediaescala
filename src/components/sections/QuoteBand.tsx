@@ -1,23 +1,23 @@
 export const QUOTE_BAND_TEXT =
-  'Nosotros mismos debemos ser el cambio que deseamos ver en el mundo'
+	"Nosotros mismos debemos ser el cambio que deseamos ver en el mundo";
 
-export const QUOTE_BAND_BACKGROUND_IMAGE = '/poligan_bg.jpg'
+export const QUOTE_BAND_BACKGROUND_IMAGE = "/poligan_bg.jpg";
 
 export function QuoteBand() {
-  return (
-    <section
-      aria-label="Frase institucional"
-      className="relative isolate flex min-h-[260px] w-full items-center justify-center overflow-hidden bg-[#222222] px-4 py-16 text-center md:min-h-[340px] md:py-24"
-      style={{
-        backgroundImage: `url(${QUOTE_BAND_BACKGROUND_IMAGE})`,
-        backgroundPosition: 'center',
-        backgroundSize: 'cover',
-      }}
-    >
-      <div className="absolute inset-0 -z-10 bg-black/55" aria-hidden="true" />
-      <p className="max-w-5xl font-heading text-2xl font-bold uppercase leading-tight tracking-wide text-white drop-shadow-md md:text-4xl md:leading-tight">
-        {QUOTE_BAND_TEXT}
-      </p>
-    </section>
-  )
+	return (
+		<section
+			aria-label="Frase institucional"
+			className="relative flex min-h-[180px] w-full items-center justify-center overflow-hidden px-4 py-10 text-center md:min-h-[230px] md:py-14"
+			style={{
+				backgroundImage: `url(${QUOTE_BAND_BACKGROUND_IMAGE})`,
+				backgroundPosition: "left top",
+				backgroundRepeat: "no-repeat",
+				backgroundSize: "cover",
+			}}
+		>
+			<p className="max-w-5xl font-sans text-[25px] font-normal normal-case leading-tight text-white">
+				{QUOTE_BAND_TEXT}
+			</p>
+		</section>
+	);
 }

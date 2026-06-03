@@ -20,6 +20,29 @@ describe("QuoteBand legacy design-system parity", () => {
 		expect(QUOTE_BAND_BACKGROUND_IMAGE).toBe("/poligan_bg.jpg");
 	});
 
+	it("keeps the legacy background layout without a dark overlay", () => {
+		const source = readFileSync(
+			path.join(process.cwd(), "src/components/sections/QuoteBand.tsx"),
+			"utf8",
+		);
+
+		expect(source).not.toContain("bg-black/55");
+		expect(source).toContain('backgroundPosition: "left top"');
+		expect(source).toContain('backgroundRepeat: "no-repeat"');
+	});
+
+	it("uses the approved legacy quote typography", () => {
+		const source = readFileSync(
+			path.join(process.cwd(), "src/components/sections/QuoteBand.tsx"),
+			"utf8",
+		);
+
+		expect(source).toContain("font-sans");
+		expect(source).toContain("text-[25px]");
+		expect(source).toContain("font-normal");
+		expect(source).toContain("normal-case");
+	});
+
 	it("does not hardcode low-contrast #888888 text outside the approved activities treatment", () => {
 		for (const file of PUBLIC_UI_SOURCE_FILES) {
 			const source = readFileSync(path.join(process.cwd(), file), "utf8");
