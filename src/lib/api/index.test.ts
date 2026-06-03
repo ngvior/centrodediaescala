@@ -106,8 +106,17 @@ describe("public data API", () => {
 		);
 
 		expect(seedSql).toContain("'social_facebook'");
+		expect(seedSql).toContain("'social_instagram'");
 		expect(seedSql).toContain("'social_linkedin'");
 		expect(seedSql).toContain("'social_twitter'");
+		expect(seedSql).toContain("'contact_email', 'info@centrodediaescala.org'");
+		expect(seedSql).toContain("'contact_email_label', 'Email'");
+		expect(seedSql).toContain(
+			"'social_facebook', 'https://www.facebook.com/centrodediaescala'",
+		);
+		expect(seedSql).toContain(
+			"'social_instagram', 'https://www.instagram.com/centrodediaescala/'",
+		);
 	});
 
 	it("fails explicitly when Supabase returns a read error", async () => {

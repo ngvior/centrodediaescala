@@ -18,6 +18,7 @@ import {
 	CheckCircle2,
 	Clock,
 	Heart,
+	Mail,
 	MapPin,
 	Music,
 	Pencil,
@@ -27,6 +28,9 @@ import {
 	type LucideIcon,
 } from "lucide-react";
 import Image from "next/image";
+
+const CONTACT_MAP_EMBED_URL =
+	"https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3282.074723619188!2d-58.49996178756245!3d-34.65281577282383!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x95bcc907d6712975%3A0x45f1a9314f8321b3!2sESCALA%20CENTRO%20DE%20D%C3%8DA!5e0!3m2!1sen!2sar!4v1780450210353!5m2!1sen!2sar";
 
 function getObjectiveColor(title: string) {
 	const normalizedTitle = title.trim().toLowerCase();
@@ -188,6 +192,36 @@ export default async function Home() {
 		siteSettings.about_compliance_items.slice(0, complianceHalf),
 		siteSettings.about_compliance_items.slice(complianceHalf),
 	];
+	const contactItems = [
+		{
+			key: "address",
+			label: siteSettings.contact_address_label,
+			value: siteSettings.contact_address,
+			Icon: MapPin,
+			iconClassName: "text-[#ff205e]",
+		},
+		{
+			key: "phone",
+			label: siteSettings.contact_phone_label,
+			value: siteSettings.contact_phone,
+			Icon: Phone,
+			iconClassName: "text-[#ff7e2e]",
+		},
+		{
+			key: "schedule",
+			label: siteSettings.contact_schedule_label,
+			value: siteSettings.contact_schedule,
+			Icon: Clock,
+			iconClassName: "text-[#94d500]",
+		},
+		{
+			key: "email",
+			label: siteSettings.contact_email_label,
+			value: siteSettings.contact_email,
+			Icon: Mail,
+			iconClassName: "text-[#49b5e7]",
+		},
+	];
 
 	return (
 		<div className="flex flex-col min-h-screen">
@@ -336,32 +370,36 @@ export default async function Home() {
 			<QuoteBand />
 
 			{/* Team (Profesionales) */}
-			<section
-				id="team"
-				className="w-full py-16 bg-[#f9f9f9] border-t border-[#e5e5e5]"
-			>
+			<section id="team" className="w-full py-16 bg-[#ffffff]">
 				<div className="container px-4 md:px-6 mx-auto">
 					<h2>{siteSettings.professionals_section_title}</h2>
-					<h6 className="mb-12">{siteSettings.professionals_subtitle}</h6>
+					<h6 className="mb-12 text-center text-gray-600 normal-case text-[18px]">
+						{siteSettings.professionals_subtitle}
+					</h6>
 
-					<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-8 gap-y-12">
+					<div className="mx-auto flex max-w-[920px] flex-wrap justify-center gap-x-8 gap-y-12">
 						{professionals.map((prof) => (
-							<div key={prof.id} className="text-center group">
-								<div className="relative mx-auto w-[180px] h-[180px] rounded-full overflow-hidden border-[5px] border-[#e5e5e5] group-hover:border-primary transition-colors duration-300 mb-6">
-									<Image
-										src={prof.image_url ?? "/profile.jpg"}
-										alt={`${prof.first_name} ${prof.last_name}`}
-										fill
-										sizes="180px"
-										className="object-cover"
-									/>
+							<div
+								key={prof.id}
+								className="group w-[calc(50%-16px)] max-w-[280px] text-center lg:w-[calc(33.33%-22px)]"
+							>
+								<div className="transform transition-transform duration-300 hover:scale-105">
+									<div className="relative mx-auto mb-4 h-[140px] w-[140px] overflow-hidden rounded-full sm:mb-6 sm:h-[160px] sm:w-[160px] lg:h-[180px] lg:w-[180px]">
+										<Image
+											src={prof.image_url ?? "/profile.jpg"}
+											alt={`${prof.first_name} ${prof.last_name}`}
+											fill
+											sizes="(min-width: 1024px) 180px, (min-width: 640px) 160px, 140px"
+											className="object-cover transition-transform duration-300 group-hover:scale-110"
+										/>
+									</div>
+									<h3 className="mb-1 text-base transition-transform duration-300 group-hover:scale-105 sm:mb-2 sm:text-xl">
+										{prof.first_name} {prof.last_name}
+									</h3>
+									<span className="block px-2 text-xs text-muted-foreground transition-transform duration-300 group-hover:scale-105 sm:px-4 sm:text-sm">
+										{prof.role}
+									</span>
 								</div>
-								<h3 className="text-xl mb-2 group-hover:text-primary transition-colors">
-									{prof.first_name} {prof.last_name}
-								</h3>
-								<span className="text-muted-foreground text-sm block px-4">
-									{prof.role}
-								</span>
 							</div>
 						))}
 					</div>
@@ -384,35 +422,42 @@ export default async function Home() {
 							{siteSettings.contact_body_text}
 						</p>
 
-						<div className="grid md:grid-cols-3 gap-8">
-							<div className="p-6 border border-[#e5e5e5] rounded group hover:border-primary transition-colors">
-								<div className="w-12 h-12 bg-primary text-white rounded-full flex items-center justify-center mx-auto mb-4">
-									<MapPin className="h-5 w-5" />
-								</div>
-								<p className="font-bold text-[#333]">
-									{siteSettings.contact_address_label}
-								</p>
-								<p className="text-sm mt-2">{siteSettings.contact_address}</p>
-							</div>
+						<div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
+							{contactItems.map(
+								({ key, label, value, Icon, iconClassName }) => (
+									<div key={key} className="px-4 py-2 text-center">
+										<div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#f9f9f9]">
+											<Icon
+												className={`h-8 w-8 ${iconClassName}`}
+												aria-hidden="true"
+											/>
+										</div>
+										<p className="font-bold text-[#333]">{label}</p>
+										{key === "email" ? (
+											<a
+												className="mt-2 block text-sm text-inherit hover:text-primary"
+												href={`mailto:${value}`}
+											>
+												{value}
+											</a>
+										) : (
+											<p className="mt-2 text-sm">{value}</p>
+										)}
+									</div>
+								),
+							)}
+						</div>
 
-							<div className="p-6 border border-[#e5e5e5] rounded group hover:border-primary transition-colors">
-								<div className="w-12 h-12 bg-primary text-white rounded-full flex items-center justify-center mx-auto mb-4">
-									<Phone className="h-5 w-5" />
-								</div>
-								<p className="font-bold text-[#333]">
-									{siteSettings.contact_phone_label}
-								</p>
-								<p className="text-sm mt-2">{siteSettings.contact_phone}</p>
-							</div>
-
-							<div className="p-6 border border-[#e5e5e5] rounded group hover:border-primary transition-colors">
-								<div className="w-12 h-12 bg-primary text-white rounded-full flex items-center justify-center mx-auto mb-4">
-									<Clock className="h-5 w-5" />
-								</div>
-								<p className="font-bold text-[#333]">
-									{siteSettings.contact_schedule_label}
-								</p>
-								<p className="text-sm mt-2">{siteSettings.contact_schedule}</p>
+						<div className="mt-12 overflow-hidden rounded-sm">
+							<div className="relative aspect-[4/3] w-full">
+								<iframe
+									src={CONTACT_MAP_EMBED_URL}
+									title="Mapa de ubicación de Escala Centro de Día"
+									className="absolute inset-0 h-full w-full border-0"
+									loading="lazy"
+									referrerPolicy="no-referrer-when-downgrade"
+									allowFullScreen
+								/>
 							</div>
 						</div>
 

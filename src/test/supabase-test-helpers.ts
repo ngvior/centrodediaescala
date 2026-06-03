@@ -112,12 +112,10 @@ export function createSupabaseClientMock(definitions: QueryDefinition[]) {
 						publicUrl: `https://qbpqlecbufcvlbspnosn.supabase.co/storage/v1/object/public/cms-images/${path}`,
 					},
 				})),
-				remove: vi
-					.fn()
-					.mockResolvedValue({
-						data: [{ name: "mock-path.png" }],
-						error: null,
-					}),
+				remove: vi.fn().mockResolvedValue({
+					data: [{ name: "mock-path.png" }],
+					error: null,
+				}),
 			})),
 		},
 	};
@@ -157,8 +155,20 @@ function getDefaultSettingValue(
 		return "https://www.facebook.com/centrodediaescala";
 	}
 
+	if (settingKey === "social_instagram") {
+		return "https://www.instagram.com/centrodediaescala/";
+	}
+
 	if (settingKey === "social_linkedin" || settingKey === "social_twitter") {
 		return "";
+	}
+
+	if (settingKey === "contact_email") {
+		return "info@centrodediaescala.org";
+	}
+
+	if (settingKey === "contact_email_label") {
+		return "Email";
 	}
 
 	if (settingType === "JSON") {

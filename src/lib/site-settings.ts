@@ -27,6 +27,7 @@ export type PublicSiteSettings = {
 	header_navigation: PublicNavigationItem[];
 	footer_copyright: string;
 	social_facebook: string;
+	social_instagram: string;
 	social_linkedin: string;
 	social_twitter: string;
 	home_hero_title: string;
@@ -55,9 +56,11 @@ export type PublicSiteSettings = {
 	contact_address: string;
 	contact_phone: string;
 	contact_schedule: string;
+	contact_email: string;
 	contact_address_label: string;
 	contact_phone_label: string;
 	contact_schedule_label: string;
+	contact_email_label: string;
 	interview_form_title: string;
 	interview_form_description: string;
 	interview_form_contact_name_label: string;
@@ -152,6 +155,16 @@ export const SITE_SETTING_DEFINITIONS = [
 		type: "LINK",
 		description:
 			"Enlace al perfil de Facebook. Opcional; vacío no se renderiza.",
+		input: "input",
+		required: false,
+	},
+	{
+		key: "social_instagram",
+		group: "REDES",
+		label: "Instagram",
+		type: "LINK",
+		description:
+			"Enlace al perfil de Instagram. Opcional; vacío no se renderiza.",
 		input: "input",
 		required: false,
 	},
@@ -384,6 +397,14 @@ export const SITE_SETTING_DEFINITIONS = [
 		input: "input",
 	},
 	{
+		key: "contact_email",
+		group: "CONTACTO",
+		label: "Email",
+		type: "TEXT",
+		description: "Email principal de contacto.",
+		input: "input",
+	},
+	{
 		key: "contact_address_label",
 		group: "CONTACTO",
 		label: "Etiqueta dirección",
@@ -405,6 +426,14 @@ export const SITE_SETTING_DEFINITIONS = [
 		label: "Etiqueta horarios",
 		type: "TEXT",
 		description: "Etiqueta visible de la tarjeta de horarios.",
+		input: "input",
+	},
+	{
+		key: "contact_email_label",
+		group: "CONTACTO",
+		label: "Etiqueta email",
+		type: "TEXT",
+		description: "Etiqueta visible de la tarjeta de email.",
 		input: "input",
 	},
 	{
