@@ -16,7 +16,12 @@ function normalizeEmail(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
 }
 
-export async function loginAdmin(formData: FormData) {
+export type LoginState = { error: string };
+
+export async function loginAdmin(
+  _prevState: LoginState,
+  formData: FormData,
+): Promise<LoginState> {
   const email = normalizeEmail(formData.get("email"));
   const password = formData.get("password");
 
