@@ -48,17 +48,18 @@ import {
 	updateHomeObjective,
 	deleteHomeObjective,
 	toggleHomeObjective,
-	updateHomeObjectiveOrder,
+	reorderRecords,
 	toggleActivity,
 	toggleGalleryItem,
 	updateActivity,
-	updateActivityOrder,
 	updateInterviewRequestCrm,
 	updateGalleryItem,
-	updateGalleryItemOrder,
 	updateSiteSetting,
 	updateProfessional,
+	type ActionResult,
 } from "./admin";
+
+const IDLE_STATE: ActionResult = { status: "idle" };
 
 function createProfessionalFormData() {
 	return createFormData({
@@ -166,8 +167,8 @@ describe("admin actions", () => {
 		actionMocks.requireAdmin.mockRejectedValueOnce(new Error("No autorizado"));
 
 		await expect(
-			createProfessional(createProfessionalFormData()),
-		).rejects.toThrow("No autorizado");
+			createProfessional(IDLE_STATE, createProfessionalFormData()),
+		).resolves.toEqual({ status: "error", message: "No autorizado" });
 
 		expect(actionMocks.createAdminClient).not.toHaveBeenCalled();
 		expect(actionMocks.revalidatePath).not.toHaveBeenCalled();
@@ -386,20 +387,28 @@ describe("admin actions", () => {
 		const { client, queries } = createSupabaseClientMock([
 			{
 				table: "professionals",
+				response: { data: { order_index: 4 }, error: null },
+			},
+			{
+				table: "professionals",
 				response: { data: null, error: null },
 			},
 		]);
 		actionMocks.createAdminClient.mockReturnValue(client);
 
-		await createProfessional(createProfessionalFormData());
+		await expect(
+			createProfessional(IDLE_STATE, createProfessionalFormData()),
+		).resolves.toEqual({ status: "success" });
 
 		expect(actionMocks.requireAdmin).toHaveBeenCalledTimes(1);
 		expect(actionMocks.createAdminClient).toHaveBeenCalledTimes(1);
-		expect(queries[0].insert).toHaveBeenCalledWith(
+		expect(queries[0].select).toHaveBeenCalledWith("order_index");
+		expect(queries[1].insert).toHaveBeenCalledWith(
 			expect.objectContaining({
 				first_name: "Ada",
 				last_name: "Lovelace",
 				image_url: "/ada.jpg",
+				order_index: 5,
 			}),
 		);
 		expect(actionMocks.revalidatePath).toHaveBeenCalledWith("/admin/dashboard");
@@ -418,22 +427,27 @@ describe("admin actions", () => {
 		]);
 		actionMocks.createAdminClient.mockReturnValue(client);
 
-		await updateProfessional(
-			createFormData({
-				id: "professional-id",
-				first_name: "Grace",
-				last_name: "Hopper",
-				role: "Coordinadora",
-				bio: null,
-				image_url: null,
-				order_index: 3,
-			}),
-		);
+		await expect(
+			updateProfessional(
+				IDLE_STATE,
+				createFormData({
+					id: "professional-id",
+					first_name: "Grace",
+					last_name: "Hopper",
+					role: "Coordinadora",
+					bio: null,
+					image_url: null,
+				}),
+			),
+		).resolves.toEqual({ status: "success" });
 
 		expect(actionMocks.requireAdmin).toHaveBeenCalledTimes(1);
 		expect(actionMocks.createAdminClient).toHaveBeenCalledTimes(1);
 		expect(queries[0].update).toHaveBeenCalledWith(
 			expect.objectContaining({ first_name: "Grace", is_active: false }),
+		);
+		expect(queries[0].update).toHaveBeenCalledWith(
+			expect.not.objectContaining({ order_index: expect.anything() }),
 		);
 		expect(queries[0].eq).toHaveBeenCalledWith("id", "professional-id");
 		expect(actionMocks.revalidatePath).toHaveBeenCalledWith("/admin/dashboard");
@@ -474,19 +488,26 @@ describe("admin actions", () => {
 		const { client, queries } = createSupabaseClientMock([
 			{
 				table: "activities",
+				response: { data: { order_index: 1 }, error: null },
+			},
+			{
+				table: "activities",
 				response: { data: null, error: null },
 			},
 		]);
 		actionMocks.createAdminClient.mockReturnValue(client);
 
-		await createActivity(createActivityFormData());
+		await expect(
+			createActivity(IDLE_STATE, createActivityFormData()),
+		).resolves.toEqual({ status: "success" });
 
 		expect(actionMocks.requireAdmin).toHaveBeenCalledTimes(1);
 		expect(actionMocks.createAdminClient).toHaveBeenCalledTimes(1);
 		expect(actionMocks.requireAdmin.mock.invocationCallOrder[0]).toBeLessThan(
 			actionMocks.createAdminClient.mock.invocationCallOrder[0],
 		);
-		expect(queries[0].insert).toHaveBeenCalledWith(
+		expect(queries[0].select).toHaveBeenCalledWith("order_index");
+		expect(queries[1].insert).toHaveBeenCalledWith(
 			expect.objectContaining({
 				title: "Taller de arte",
 				description: "Actividad expresiva semanal",
@@ -508,19 +529,22 @@ describe("admin actions", () => {
 				table: "activities",
 				response: { data: null, error: null },
 			},
+			{
+				table: "activities",
+				response: { data: null, error: null },
+			},
 		]);
 		actionMocks.createAdminClient.mockReturnValue(client);
 
-		await createActivity(createActivityFormData({ icon: "<script>" }));
+		await createActivity(IDLE_STATE, createActivityFormData({ icon: "<script>" }));
 
-		expect(queries[0].insert).toHaveBeenCalledWith(
+		expect(queries[1].insert).toHaveBeenCalledWith(
 			expect.objectContaining({ icon: "heart" }),
 		);
 	});
 
-	it("updates, toggles, orders, and deletes activities through the admin client", async () => {
+	it("updates, toggles, and deletes activities through the admin client", async () => {
 		const { client, queries } = createSupabaseClientMock([
-			{ table: "activities", response: { data: null, error: null } },
 			{ table: "activities", response: { data: null, error: null } },
 			{ table: "activities", response: { data: null, error: null } },
 			{
@@ -531,23 +555,23 @@ describe("admin actions", () => {
 		]);
 		actionMocks.createAdminClient.mockReturnValue(client);
 
-		await updateActivity(
-			createActivityFormData({
-				id: "activity-id",
-				icon: "pencil",
-				is_active: null,
-			}),
-		);
+		await expect(
+			updateActivity(
+				IDLE_STATE,
+				createActivityFormData({
+					id: "activity-id",
+					icon: "pencil",
+					is_active: null,
+				}),
+			),
+		).resolves.toEqual({ status: "success" });
 		await toggleActivity(
 			createFormData({ id: "activity-id", is_active: "true" }),
 		);
-		await updateActivityOrder(
-			createFormData({ id: "activity-id", order_index: 7 }),
-		);
 		await deleteActivity(createFormData({ id: "activity-id" }));
 
-		expect(actionMocks.requireAdmin).toHaveBeenCalledTimes(4);
-		expect(actionMocks.createAdminClient).toHaveBeenCalledTimes(4);
+		expect(actionMocks.requireAdmin).toHaveBeenCalledTimes(3);
+		expect(actionMocks.createAdminClient).toHaveBeenCalledTimes(3);
 		expect(queries[0].update).toHaveBeenCalledWith(
 			expect.objectContaining({
 				title: "Taller de arte",
@@ -555,11 +579,13 @@ describe("admin actions", () => {
 				is_active: false,
 			}),
 		);
+		expect(queries[0].update).toHaveBeenCalledWith(
+			expect.not.objectContaining({ order_index: expect.anything() }),
+		);
 		expect(queries[1].update).toHaveBeenCalledWith({ is_active: true });
-		expect(queries[2].update).toHaveBeenCalledWith({ order_index: 7 });
-		expect(queries[3].select).toHaveBeenCalledWith("image_url");
-		expect(queries[4].delete).toHaveBeenCalledTimes(1);
-		expect(queries[4].eq).toHaveBeenCalledWith("id", "activity-id");
+		expect(queries[2].select).toHaveBeenCalledWith("image_url");
+		expect(queries[3].delete).toHaveBeenCalledTimes(1);
+		expect(queries[3].eq).toHaveBeenCalledWith("id", "activity-id");
 		expect(actionMocks.revalidatePath).toHaveBeenCalledWith(
 			"/admin/actividades",
 		);
@@ -574,6 +600,7 @@ describe("admin actions", () => {
 		actionMocks.createAdminClient.mockReturnValue(client);
 
 		await updateActivity(
+			IDLE_STATE,
 			createActivityFormData({
 				id: "activity-id",
 				icon: "unknown",
@@ -586,22 +613,76 @@ describe("admin actions", () => {
 		);
 	});
 
-	it("rejects invalid activity payloads before creating the admin client", async () => {
+	it("preserves the stored activity image_url when no image is provided on update", async () => {
+		// Regression (FIX 1): the activities form has no image input, so neither
+		// image_file nor existing_image_url reaches updateActivity. The payload
+		// must OMIT image_url so the stored value is preserved rather than nulled.
+		const { client, queries } = createSupabaseClientMock([
+			{ table: "activities", response: { data: null, error: null } },
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+
 		await expect(
-			createActivity(createActivityFormData({ title: "" })),
-		).rejects.toThrow("El campo title es obligatorio");
+			updateActivity(
+				IDLE_STATE,
+				createFormData({
+					id: "activity-id",
+					title: "Taller de arte",
+					description: "Actividad expresiva semanal",
+					category: "Talleres",
+					icon: "music",
+					is_active: "on",
+				}),
+			),
+		).resolves.toEqual({ status: "success" });
+
+		expect(actionMocks.uploadImage).not.toHaveBeenCalled();
+		expect(queries[0].update).toHaveBeenCalledWith(
+			expect.not.objectContaining({ image_url: expect.anything() }),
+		);
+	});
+
+	it("starts order_index at 0 when creating into an empty table", async () => {
+		// Covers the empty-table branch of getNextOrderIndex: maybeSingle returns
+		// data: null, so the first row must land at order_index 0 ((null ?? -1) + 1).
+		const { client, queries } = createSupabaseClientMock([
+			{ table: "activities", response: { data: null, error: null } },
+			{ table: "activities", response: { data: null, error: null } },
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+
+		await expect(
+			createActivity(IDLE_STATE, createActivityFormData()),
+		).resolves.toEqual({ status: "success" });
+
+		expect(queries[1].insert).toHaveBeenCalledWith(
+			expect.objectContaining({ order_index: 0 }),
+		);
+	});
+
+	it("rejects invalid activity payloads before mutating", async () => {
+		const { client } = createSupabaseClientMock([
+			{ table: "activities", response: { data: null, error: null } },
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+
+		await expect(
+			createActivity(IDLE_STATE, createActivityFormData({ title: "" })),
+		).resolves.toEqual({
+			status: "error",
+			message: "El campo title es obligatorio",
+		});
 
 		expect(actionMocks.requireAdmin).toHaveBeenCalledTimes(1);
-		expect(actionMocks.createAdminClient).not.toHaveBeenCalled();
 		expect(actionMocks.revalidatePath).not.toHaveBeenCalled();
 	});
 
-	it("does not create a Supabase admin client when activity auth fails", async () => {
+	it("returns an error result when activity auth fails", async () => {
 		actionMocks.requireAdmin.mockRejectedValueOnce(new Error("No autorizado"));
 
-		await expect(createActivity(createActivityFormData())).rejects.toThrow(
-			"No autorizado",
-		);
+		await expect(
+			createActivity(IDLE_STATE, createActivityFormData()),
+		).resolves.toEqual({ status: "error", message: "No autorizado" });
 
 		expect(actionMocks.createAdminClient).not.toHaveBeenCalled();
 		expect(actionMocks.revalidatePath).not.toHaveBeenCalled();
@@ -611,23 +692,31 @@ describe("admin actions", () => {
 		const { client, queries } = createSupabaseClientMock([
 			{
 				table: "gallery_items",
+				response: { data: { order_index: 2 }, error: null },
+			},
+			{
+				table: "gallery_items",
 				response: { data: null, error: null },
 			},
 		]);
 		actionMocks.createAdminClient.mockReturnValue(client);
 
-		await createGalleryItem(createGalleryItemFormData());
+		await expect(
+			createGalleryItem(IDLE_STATE, createGalleryItemFormData()),
+		).resolves.toEqual({ status: "success" });
 
 		expect(actionMocks.requireAdmin).toHaveBeenCalledTimes(1);
 		expect(actionMocks.createAdminClient).toHaveBeenCalledTimes(1);
 		expect(actionMocks.requireAdmin.mock.invocationCallOrder[0]).toBeLessThan(
 			actionMocks.createAdminClient.mock.invocationCallOrder[0],
 		);
-		expect(queries[0].insert).toHaveBeenCalledWith(
+		expect(queries[0].select).toHaveBeenCalledWith("order_index");
+		expect(queries[1].insert).toHaveBeenCalledWith(
 			expect.objectContaining({
 				title: "Patio central",
 				image_url: "/patio.jpg",
 				is_active: true,
+				order_index: 3,
 			}),
 		);
 		expect(actionMocks.revalidatePath).toHaveBeenCalledWith("/");
@@ -637,9 +726,8 @@ describe("admin actions", () => {
 		);
 	});
 
-	it("updates, toggles, orders, and deletes gallery items through the admin client", async () => {
+	it("updates, toggles, and deletes gallery items through the admin client", async () => {
 		const { client, queries } = createSupabaseClientMock([
-			{ table: "gallery_items", response: { data: null, error: null } },
 			{ table: "gallery_items", response: { data: null, error: null } },
 			{ table: "gallery_items", response: { data: null, error: null } },
 			{
@@ -650,27 +738,29 @@ describe("admin actions", () => {
 		]);
 		actionMocks.createAdminClient.mockReturnValue(client);
 
-		await updateGalleryItem(
-			createGalleryItemFormData({ id: "gallery-id", is_active: null }),
-		);
+		await expect(
+			updateGalleryItem(
+				IDLE_STATE,
+				createGalleryItemFormData({ id: "gallery-id", is_active: null }),
+			),
+		).resolves.toEqual({ status: "success" });
 		await toggleGalleryItem(
 			createFormData({ id: "gallery-id", is_active: "true" }),
 		);
-		await updateGalleryItemOrder(
-			createFormData({ id: "gallery-id", order_index: 4 }),
-		);
 		await deleteGalleryItem(createFormData({ id: "gallery-id" }));
 
-		expect(actionMocks.requireAdmin).toHaveBeenCalledTimes(4);
-		expect(actionMocks.createAdminClient).toHaveBeenCalledTimes(4);
+		expect(actionMocks.requireAdmin).toHaveBeenCalledTimes(3);
+		expect(actionMocks.createAdminClient).toHaveBeenCalledTimes(3);
 		expect(queries[0].update).toHaveBeenCalledWith(
 			expect.objectContaining({ title: "Patio central", is_active: false }),
 		);
+		expect(queries[0].update).toHaveBeenCalledWith(
+			expect.not.objectContaining({ order_index: expect.anything() }),
+		);
 		expect(queries[1].update).toHaveBeenCalledWith({ is_active: true });
-		expect(queries[2].update).toHaveBeenCalledWith({ order_index: 4 });
-		expect(queries[3].select).toHaveBeenCalledWith("image_url");
-		expect(queries[4].delete).toHaveBeenCalledTimes(1);
-		expect(queries[4].eq).toHaveBeenCalledWith("id", "gallery-id");
+		expect(queries[2].select).toHaveBeenCalledWith("image_url");
+		expect(queries[3].delete).toHaveBeenCalledTimes(1);
+		expect(queries[3].eq).toHaveBeenCalledWith("id", "gallery-id");
 		expect(actionMocks.revalidatePath).toHaveBeenCalledWith("/admin/galeria");
 		expect(actionMocks.revalidatePath).toHaveBeenCalledWith("/");
 		expect(actionMocks.revalidatePath).not.toHaveBeenCalledWith(
@@ -678,22 +768,25 @@ describe("admin actions", () => {
 		);
 	});
 
-	it("rejects invalid gallery payloads before creating the admin client", async () => {
+	it("returns an error result for invalid gallery payloads before creating the admin client", async () => {
 		await expect(
-			createGalleryItem(createGalleryItemFormData({ image_url: "" })),
-		).rejects.toThrow("El campo image_url es obligatorio");
+			createGalleryItem(IDLE_STATE, createGalleryItemFormData({ image_url: "" })),
+		).resolves.toEqual({
+			status: "error",
+			message: "El campo image_url es obligatorio",
+		});
 
 		expect(actionMocks.requireAdmin).toHaveBeenCalledTimes(1);
 		expect(actionMocks.createAdminClient).not.toHaveBeenCalled();
 		expect(actionMocks.revalidatePath).not.toHaveBeenCalled();
 	});
 
-	it("does not create a Supabase admin client when gallery auth fails", async () => {
+	it("returns an error result when gallery auth fails", async () => {
 		actionMocks.requireAdmin.mockRejectedValueOnce(new Error("No autorizado"));
 
 		await expect(
-			createGalleryItem(createGalleryItemFormData()),
-		).rejects.toThrow("No autorizado");
+			createGalleryItem(IDLE_STATE, createGalleryItemFormData()),
+		).resolves.toEqual({ status: "error", message: "No autorizado" });
 
 		expect(actionMocks.createAdminClient).not.toHaveBeenCalled();
 		expect(actionMocks.revalidatePath).not.toHaveBeenCalled();
@@ -771,6 +864,7 @@ describe("admin actions", () => {
 		it("uploads a file on professional create and saves public URL", async () => {
 			const { client, queries } = createSupabaseClientMock([
 				{ table: "professionals", response: { data: null, error: null } },
+				{ table: "professionals", response: { data: null, error: null } },
 			]);
 			actionMocks.createAdminClient.mockReturnValue(client);
 			actionMocks.uploadImage.mockResolvedValue(
@@ -781,13 +875,13 @@ describe("admin actions", () => {
 			const dummyFile = new File(["foo"], "image.png", { type: "image/png" });
 			formData.set("image_file", dummyFile);
 
-			await createProfessional(formData);
+			await createProfessional(IDLE_STATE, formData);
 
 			expect(actionMocks.uploadImage).toHaveBeenCalledWith(
 				dummyFile,
 				"professionals",
 			);
-			expect(queries[0].insert).toHaveBeenCalledWith(
+			expect(queries[1].insert).toHaveBeenCalledWith(
 				expect.objectContaining({
 					image_url:
 						"https://supabase.co/storage/v1/object/public/cms-images/professionals/uuid-123.png",
@@ -797,6 +891,7 @@ describe("admin actions", () => {
 
 		it("removes uploaded file if DB INSERT fails during create", async () => {
 			const { client } = createSupabaseClientMock([
+				{ table: "professionals", response: { data: null, error: null } },
 				{
 					table: "professionals",
 					response: { data: null, error: { message: "Database write error" } },
@@ -811,9 +906,13 @@ describe("admin actions", () => {
 			const dummyFile = new File(["foo"], "image.png", { type: "image/png" });
 			formData.set("image_file", dummyFile);
 
-			await expect(createProfessional(formData)).rejects.toThrow(
-				"Database write error",
-			);
+			// Infra/DB failures are now masked behind a generic message so we don't
+			// leak the table name + Postgres detail to the client (the detailed
+			// error is logged server-side via console.error instead).
+			await expect(createProfessional(IDLE_STATE, formData)).resolves.toEqual({
+				status: "error",
+				message: "No se pudo guardar. Intentá nuevamente.",
+			});
 
 			expect(actionMocks.uploadImage).toHaveBeenCalledWith(
 				dummyFile,
@@ -844,7 +943,7 @@ describe("admin actions", () => {
 			const dummyFile = new File(["foo"], "image.png", { type: "image/png" });
 			formData.set("image_file", dummyFile);
 
-			await updateProfessional(formData);
+			await updateProfessional(IDLE_STATE, formData);
 
 			expect(actionMocks.uploadImage).toHaveBeenCalledWith(
 				dummyFile,
@@ -865,6 +964,10 @@ describe("admin actions", () => {
 	describe("Home Objectives Actions", () => {
 		it("creates a home objective successfully and revalidates", async () => {
 			const { client, queries } = createSupabaseClientMock([
+				{
+					table: "home_objectives",
+					response: { data: { order_index: 6 }, error: null },
+				},
 				{ table: "home_objectives", response: { data: null, error: null } },
 			]);
 			actionMocks.createAdminClient.mockReturnValue(client);
@@ -873,19 +976,21 @@ describe("admin actions", () => {
 				title: "Nuevo Objetivo",
 				description: "Descripción detallada",
 				icon: "fa-star",
-				order_index: 3,
 			});
 
-			await createHomeObjective(formData);
+			await expect(createHomeObjective(IDLE_STATE, formData)).resolves.toEqual({
+				status: "success",
+			});
 
 			expect(actionMocks.requireAdmin).toHaveBeenCalledTimes(1);
 			expect(actionMocks.createAdminClient).toHaveBeenCalledTimes(1);
-			expect(queries[0].insert).toHaveBeenCalledWith({
+			expect(queries[0].select).toHaveBeenCalledWith("order_index");
+			expect(queries[1].insert).toHaveBeenCalledWith({
 				title: "Nuevo Objetivo",
 				description: "Descripción detallada",
 				icon: "fa-star",
 				is_active: true,
-				order_index: 3,
+				order_index: 7,
 			});
 			expect(actionMocks.revalidatePath).toHaveBeenCalledWith(
 				"/admin/dashboard",
@@ -896,7 +1001,7 @@ describe("admin actions", () => {
 			expect(actionMocks.revalidatePath).toHaveBeenCalledWith("/");
 		});
 
-		it("updates an existing home objective and revalidates", async () => {
+		it("updates an existing home objective without touching order_index", async () => {
 			const { client, queries } = createSupabaseClientMock([
 				{ table: "home_objectives", response: { data: null, error: null } },
 			]);
@@ -907,18 +1012,18 @@ describe("admin actions", () => {
 				title: "Objetivo Editado",
 				description: "Nueva descripción",
 				icon: "fa-check",
-				order_index: 1,
 				is_active: "on",
 			});
 
-			await updateHomeObjective(formData);
+			await expect(updateHomeObjective(IDLE_STATE, formData)).resolves.toEqual({
+				status: "success",
+			});
 
 			expect(queries[0].update).toHaveBeenCalledWith({
 				title: "Objetivo Editado",
 				description: "Nueva descripción",
 				icon: "fa-check",
 				is_active: true,
-				order_index: 1,
 			});
 			expect(queries[0].eq).toHaveBeenCalledWith("id", "objective-id");
 		});
@@ -948,17 +1053,66 @@ describe("admin actions", () => {
 			expect(queries[0].update).toHaveBeenCalledWith({ is_active: true });
 		});
 
-		it("updates order_index on home objectives", async () => {
+	});
+
+	describe("reorderRecords", () => {
+		it("persists array position as order_index for each id and revalidates", async () => {
 			const { client, queries } = createSupabaseClientMock([
-				{ table: "home_objectives", response: { data: null, error: null } },
+				{ table: "activities", response: { data: null, error: null } },
+				{ table: "activities", response: { data: null, error: null } },
+				{ table: "activities", response: { data: null, error: null } },
 			]);
 			actionMocks.createAdminClient.mockReturnValue(client);
 
-			await updateHomeObjectiveOrder(
-				createFormData({ id: "objective-id", order_index: 5 }),
+			await reorderRecords("activities", ["id-a", "id-b", "id-c"]);
+
+			expect(actionMocks.requireAdmin).toHaveBeenCalledTimes(1);
+			expect(actionMocks.createAdminClient).toHaveBeenCalledTimes(1);
+			expect(queries[0].update).toHaveBeenCalledWith({ order_index: 0 });
+			expect(queries[0].eq).toHaveBeenCalledWith("id", "id-a");
+			expect(queries[1].update).toHaveBeenCalledWith({ order_index: 1 });
+			expect(queries[1].eq).toHaveBeenCalledWith("id", "id-b");
+			expect(queries[2].update).toHaveBeenCalledWith({ order_index: 2 });
+			expect(queries[2].eq).toHaveBeenCalledWith("id", "id-c");
+			expect(actionMocks.revalidatePath).toHaveBeenCalledWith(
+				"/admin/actividades",
+			);
+			expect(actionMocks.revalidatePath).toHaveBeenCalledWith("/");
+		});
+
+		it("revalidates the matching paths for each reorderable table", async () => {
+			const { client } = createSupabaseClientMock([
+				{ table: "gallery_items", response: { data: null, error: null } },
+			]);
+			actionMocks.createAdminClient.mockReturnValue(client);
+
+			await reorderRecords("gallery_items", ["only-id"]);
+
+			expect(actionMocks.revalidatePath).toHaveBeenCalledWith("/admin/galeria");
+			expect(actionMocks.revalidatePath).not.toHaveBeenCalledWith(
+				"/admin/dashboard",
+			);
+		});
+
+		it("authenticates before touching the admin client and skips empty payloads", async () => {
+			await reorderRecords("home_objectives", []);
+
+			expect(actionMocks.requireAdmin).toHaveBeenCalledTimes(1);
+			expect(actionMocks.createAdminClient).not.toHaveBeenCalled();
+			expect(actionMocks.revalidatePath).not.toHaveBeenCalled();
+		});
+
+		it("does not reach the admin client when reorder auth fails", async () => {
+			actionMocks.requireAdmin.mockRejectedValueOnce(
+				new Error("No autorizado"),
 			);
 
-			expect(queries[0].update).toHaveBeenCalledWith({ order_index: 5 });
+			await expect(
+				reorderRecords("professionals", ["id-a"]),
+			).rejects.toThrow("No autorizado");
+
+			expect(actionMocks.createAdminClient).not.toHaveBeenCalled();
+			expect(actionMocks.revalidatePath).not.toHaveBeenCalled();
 		});
 	});
 });
