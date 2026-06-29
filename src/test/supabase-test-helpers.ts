@@ -27,6 +27,7 @@ export type QueryMock<T = unknown> = PromiseLike<SupabaseTestResponse<T>> & {
 	update: QueryMethod<T>;
 	delete: QueryMethod<T>;
 	single: QueryMethod<T>;
+	maybeSingle: QueryMethod<T>;
 };
 
 export type QueryDefinition<T = unknown> = {
@@ -48,6 +49,7 @@ export function createSupabaseQueryMock<T = unknown>(
 		update: vi.fn(),
 		delete: vi.fn(),
 		single: vi.fn(),
+		maybeSingle: vi.fn(),
 		then<TResult1 = SupabaseTestResponse<T>, TResult2 = never>(
 			onfulfilled?:
 				| ((value: SupabaseTestResponse<T>) => TResult1 | PromiseLike<TResult1>)
@@ -68,6 +70,7 @@ export function createSupabaseQueryMock<T = unknown>(
 	query.update.mockReturnValue(query);
 	query.delete.mockReturnValue(query);
 	query.single.mockReturnValue(query);
+	query.maybeSingle.mockReturnValue(query);
 	query.delete.mockReturnValue(query);
 
 	return query;

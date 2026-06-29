@@ -13,21 +13,10 @@ import { GallerySection } from "@/components/sections/GallerySection";
 import { QuoteBand } from "@/components/sections/QuoteBand";
 import { AnimateOnScroll } from "@/components/AnimateOnScroll";
 import { ObjectiveCard } from "@/components/sections/ObjectiveCard";
-import {
-	Check,
-	CheckCircle2,
-	Clock,
-	Heart,
-	Mail,
-	MapPin,
-	Music,
-	Pencil,
-	Phone,
-	Store,
-	ThumbsUp,
-	type LucideIcon,
-} from "lucide-react";
+import { Check, CheckCircle2, Clock, Mail, MapPin, Phone } from "lucide-react";
 import Image from "next/image";
+
+import { getActivityIcon } from "@/lib/activity-icons";
 
 const CONTACT_MAP_EMBED_URL =
 	"https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3282.074723619188!2d-58.49996178756245!3d-34.65281577282383!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x95bcc907d6712975%3A0x45f1a9314f8321b3!2sESCALA%20CENTRO%20DE%20D%C3%8DA!5e0!3m2!1sen!2sar!4v1780450210353!5m2!1sen!2sar";
@@ -100,23 +89,7 @@ function getObjectiveColor(title: string) {
 
 const ACTIVITY_ICON_COLOR = "#1593D7";
 
-const ACTIVITY_ICON_MAP: Record<string, LucideIcon> = {
-	"thumbs-up": ThumbsUp,
-	music: Music,
-	heart: Heart,
-	shop: Store,
-	pencil: Pencil,
-};
-
 const BOLD_SEGMENT_RE = /\*\*([^*\r\n]+?)\*\*/g;
-
-function getActivityIcon(icon: string | null | undefined): LucideIcon {
-	if (!icon) {
-		return Heart;
-	}
-
-	return ACTIVITY_ICON_MAP[icon] ?? Heart;
-}
 
 function renderDescriptionWithBold(text: string): ReactNode[] {
 	const nodes: ReactNode[] = [];

@@ -81,10 +81,22 @@ export type LatestInterviewRequest = {
 	created_at: string;
 };
 
+export type EntityCounts = {
+	active: number;
+	total: number;
+};
+
+export type InterviewStatusBreakdown = Record<InterviewRequestStatus, number>;
+
 export type AdminDashboardData = {
 	pendingInterviewRequests: number;
-	activeProfessionals: number;
-	activeActivities: number;
+	professionals: EntityCounts;
+	activities: EntityCounts;
+	galleryItems: EntityCounts;
+	homeObjectives: EntityCounts;
+	interviewStatusBreakdown: InterviewStatusBreakdown;
+	interviewRequestsThisWeek: number;
+	totalInterviewRequests: number;
 	latestInterviewRequests: LatestInterviewRequest[];
 };
 
@@ -123,14 +135,30 @@ function isInterviewRequestStatus(
 	return INTERVIEW_REQUEST_STATUSES.includes(value as InterviewRequestStatus);
 }
 
+/**
+ * Tags infrastructure/DB failures so the action boundary (`toActionError`) can
+ * tell them apart from user-facing validation errors. The detailed `message`
+ * (table name + Postgres detail) is logged server-side only; the client gets a
+ * generic message instead, so we never leak schema internals to the browser.
+ */
+class AdminInfraError extends Error {
+	readonly operation: string;
+
+	constructor(operation: string, detail: string) {
+		super(`Supabase ${operation}: ${detail}`);
+		this.name = "AdminInfraError";
+		this.operation = operation;
+	}
+}
+
+const GENERIC_INFRA_ERROR_MESSAGE = "No se pudo guardar. Intentá nuevamente.";
+
 function assertMutationSucceeded(
 	tableName: string,
 	error: { message: string } | null,
 ) {
 	if (error) {
-		throw new Error(
-			`Supabase mutation failed for ${tableName}: ${error.message}`,
-		);
+		throw new AdminInfraError(`mutation failed for ${tableName}`, error.message);
 	}
 }
 
@@ -139,13 +167,17 @@ function assertReadSucceeded<T>(
 	response: SupabaseResponse<T>,
 ): T {
 	if (response.error) {
-		throw new Error(
-			`Supabase admin read failed for ${tableName}: ${response.error.message}`,
+		throw new AdminInfraError(
+			`admin read failed for ${tableName}`,
+			response.error.message,
 		);
 	}
 
 	if (!response.data) {
-		throw new Error(`Supabase admin read returned no data for ${tableName}`);
+		throw new AdminInfraError(
+			`admin read returned no data for ${tableName}`,
+			"empty result",
+		);
 	}
 
 	return response.data;
@@ -156,8 +188,9 @@ function assertCountSucceeded(
 	response: SupabaseCountResponse,
 ) {
 	if (response.error) {
-		throw new Error(
-			`Supabase count failed for ${tableName}: ${response.error.message}`,
+		throw new AdminInfraError(
+			`count failed for ${tableName}`,
+			response.error.message,
 		);
 	}
 
@@ -183,22 +216,6 @@ function getOptionalString(formData: FormData, key: string) {
 
 	const trimmed = value.trim();
 	return trimmed.length > 0 ? trimmed : null;
-}
-
-function getOptionalNumber(formData: FormData, key: string) {
-	const value = formData.get(key);
-
-	if (typeof value !== "string" || value.trim().length === 0) {
-		return 0;
-	}
-
-	const parsed = Number(value);
-
-	if (!Number.isFinite(parsed)) {
-		throw new Error(`El campo ${key} debe ser numérico`);
-	}
-
-	return parsed;
 }
 
 function getCheckboxBoolean(
@@ -258,6 +275,114 @@ function revalidateInterviewCrmPaths() {
 	revalidatePath("/admin/entrevistas");
 }
 
+/**
+ * Serializable result returned by create/update actions so client islands can
+ * drive them with `useActionState` and close the dialog on success (instead of
+ * redirecting). Errors are returned in-band rather than thrown so the UI can
+ * surface a message without an error boundary.
+ */
+export type ActionResult =
+	| { status: "idle" }
+	| { status: "success" }
+	| { status: "error"; message: string };
+
+function toActionError(error: unknown): ActionResult {
+	if (error instanceof AdminInfraError) {
+		// Infra/DB failures can carry table names and Postgres detail. Log the
+		// full error server-side and return a generic message so we never leak
+		// schema internals to the client.
+		console.error("Admin infra error", {
+			operation: error.operation,
+			detail: error.message,
+		});
+		return { status: "error", message: GENERIC_INFRA_ERROR_MESSAGE };
+	}
+
+	// Validation errors (getRequiredString / getOptional* / auth) are safe and
+	// user-facing — surface their message verbatim.
+	return {
+		status: "error",
+		message: error instanceof Error ? error.message : "Error desconocido",
+	};
+}
+
+/**
+ * Computes the next order_index for a new row as max(order_index) + 1 via a
+ * single pre-insert read. New records always land at the end of the list, so
+ * the form no longer needs an order_index input.
+ */
+async function getNextOrderIndex(
+	supabase: ReturnType<typeof createAdminClient>,
+	tableName: string,
+): Promise<number> {
+	const response = (await supabase
+		.from(tableName)
+		.select("order_index")
+		.order("order_index", { ascending: false })
+		.limit(1)
+		.maybeSingle()) as SupabaseResponse<{ order_index: number }>;
+
+	if (response.error) {
+		throw new AdminInfraError(
+			`admin read failed for ${tableName}`,
+			response.error.message,
+		);
+	}
+
+	// Empty table → maybeSingle returns data: null → first row lands at 0.
+	return (response.data?.order_index ?? -1) + 1;
+}
+
+const REORDERABLE_TABLES = {
+	professionals: revalidateProfessionalPaths,
+	activities: revalidateActivityPaths,
+	gallery_items: revalidateGalleryPaths,
+	home_objectives: revalidateObjectivePaths,
+} as const;
+
+export type ReorderableTable = keyof typeof REORDERABLE_TABLES;
+
+/**
+ * Persists a manual drag-and-drop ordering. Each id's array position becomes
+ * its order_index. Admin lists are tiny (< 50 rows) and reorder is a rare
+ * manual action, so per-row updates run in parallel via Promise.all (no RPC,
+ * no migration).
+ */
+export async function reorderRecords(
+	table: ReorderableTable,
+	ids: string[],
+): Promise<void> {
+	await requireAdmin();
+
+	// Server-action arguments are untrusted at runtime regardless of the TS type,
+	// so this guard validates the `table` arg crossing the action boundary before
+	// it reaches the query builder.
+	const revalidate = REORDERABLE_TABLES[table];
+
+	if (!revalidate) {
+		throw new Error(`Tabla no reordenable: ${table}`);
+	}
+
+	if (ids.length === 0) {
+		return;
+	}
+
+	const supabase = createAdminClient();
+	// Not atomic: per-row updates run in parallel without a transaction. Acceptable
+	// for tiny admin lists — a partial failure self-heals on the next refresh.
+	const results = await Promise.all(
+		ids.map((id, index) =>
+			supabase.from(table).update({ order_index: index }).eq("id", id),
+		),
+	);
+
+	for (const result of results) {
+		assertMutationSucceeded(table, (result as SupabaseResponse<unknown>).error);
+	}
+
+	revalidate();
+}
+
 export async function getAdminObjectives(): Promise<AdminHomeObjective[]> {
 	await requireAdmin();
 
@@ -265,7 +390,8 @@ export async function getAdminObjectives(): Promise<AdminHomeObjective[]> {
 	const response = await supabase
 		.from("home_objectives")
 		.select("id, title, description, icon, is_active, order_index")
-		.order("order_index", { ascending: true });
+		.order("order_index", { ascending: true })
+		.order("title", { ascending: true });
 
 	return assertReadSucceeded(
 		"home_objectives",
@@ -355,28 +481,62 @@ export async function getAdminInterviewRequests(
 	);
 }
 
+type InterviewStatusRow = {
+	status: InterviewRequestStatus;
+	created_at: string;
+};
+
+const WEEK_IN_MS = 7 * 24 * 60 * 60 * 1000;
+
 export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 	await requireAdmin();
 
 	const supabase = createAdminClient();
+
+	// Parallel reads (no waterfall): 8 head-only count queries for the four
+	// entities' active/total, one light status+created_at scan for the interview
+	// breakdown, and the latest-requests list. The interview status counts
+	// (pending, breakdown, this-week, total) are derived in JS from a single
+	// scan instead of issuing one count query per status.
 	const [
-		pendingRequests,
-		activeProfessionals,
-		activeActivities,
+		professionalsActive,
+		professionalsTotal,
+		activitiesActive,
+		activitiesTotal,
+		galleryActive,
+		galleryTotal,
+		objectivesActive,
+		objectivesTotal,
+		interviewStatusRows,
 		latestRequests,
 	] = await Promise.all([
-		supabase
-			.from("interview_requests")
-			.select("id", { count: "exact", head: true })
-			.eq("status", "PENDING"),
 		supabase
 			.from("professionals")
 			.select("id", { count: "exact", head: true })
 			.eq("is_active", true),
 		supabase
+			.from("professionals")
+			.select("id", { count: "exact", head: true }),
+		supabase
 			.from("activities")
 			.select("id", { count: "exact", head: true })
 			.eq("is_active", true),
+		supabase.from("activities").select("id", { count: "exact", head: true }),
+		supabase
+			.from("gallery_items")
+			.select("id", { count: "exact", head: true })
+			.eq("is_active", true),
+		supabase
+			.from("gallery_items")
+			.select("id", { count: "exact", head: true }),
+		supabase
+			.from("home_objectives")
+			.select("id", { count: "exact", head: true })
+			.eq("is_active", true),
+		supabase
+			.from("home_objectives")
+			.select("id", { count: "exact", head: true }),
+		supabase.from("interview_requests").select("status, created_at"),
 		supabase
 			.from("interview_requests")
 			.select("id, contact_name, patient_name, phone, status, created_at")
@@ -384,19 +544,76 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 			.limit(5),
 	]);
 
+	const statusRows = assertReadSucceeded(
+		"interview_requests",
+		interviewStatusRows as SupabaseResponse<InterviewStatusRow[]>,
+	);
+
+	const interviewStatusBreakdown: InterviewStatusBreakdown = {
+		PENDING: 0,
+		CONTACTED: 0,
+		CONFIRMED: 0,
+		REJECTED: 0,
+	};
+
+	const weekThreshold = Date.now() - WEEK_IN_MS;
+	let interviewRequestsThisWeek = 0;
+
+	for (const row of statusRows) {
+		if (isInterviewRequestStatus(row.status)) {
+			interviewStatusBreakdown[row.status] += 1;
+		}
+
+		if (new Date(row.created_at).getTime() >= weekThreshold) {
+			interviewRequestsThisWeek += 1;
+		}
+	}
+
 	return {
-		pendingInterviewRequests: assertCountSucceeded(
-			"interview_requests",
-			pendingRequests as SupabaseCountResponse,
-		),
-		activeProfessionals: assertCountSucceeded(
-			"professionals",
-			activeProfessionals as SupabaseCountResponse,
-		),
-		activeActivities: assertCountSucceeded(
-			"activities",
-			activeActivities as SupabaseCountResponse,
-		),
+		pendingInterviewRequests: interviewStatusBreakdown.PENDING,
+		professionals: {
+			active: assertCountSucceeded(
+				"professionals",
+				professionalsActive as SupabaseCountResponse,
+			),
+			total: assertCountSucceeded(
+				"professionals",
+				professionalsTotal as SupabaseCountResponse,
+			),
+		},
+		activities: {
+			active: assertCountSucceeded(
+				"activities",
+				activitiesActive as SupabaseCountResponse,
+			),
+			total: assertCountSucceeded(
+				"activities",
+				activitiesTotal as SupabaseCountResponse,
+			),
+		},
+		galleryItems: {
+			active: assertCountSucceeded(
+				"gallery_items",
+				galleryActive as SupabaseCountResponse,
+			),
+			total: assertCountSucceeded(
+				"gallery_items",
+				galleryTotal as SupabaseCountResponse,
+			),
+		},
+		homeObjectives: {
+			active: assertCountSucceeded(
+				"home_objectives",
+				objectivesActive as SupabaseCountResponse,
+			),
+			total: assertCountSucceeded(
+				"home_objectives",
+				objectivesTotal as SupabaseCountResponse,
+			),
+		},
+		interviewStatusBreakdown,
+		interviewRequestsThisWeek,
+		totalInterviewRequests: statusRows.length,
 		latestInterviewRequests: assertReadSucceeded(
 			"interview_requests",
 			latestRequests as SupabaseResponse<LatestInterviewRequest[]>,
@@ -488,80 +705,96 @@ export async function updateInterviewRequestCrm(formData: FormData) {
 	revalidateInterviewCrmPaths();
 }
 
-export async function createProfessional(formData: FormData) {
-	await requireAdmin();
+export async function createProfessional(
+	_prevState: ActionResult,
+	formData: FormData,
+): Promise<ActionResult> {
+	try {
+		await requireAdmin();
 
-	let imageUrl: string = "/profile.jpg";
-	const file = formData.get("image_file") as File | null;
-	const hasUpload = file && file.size > 0;
+		let imageUrl: string = "/profile.jpg";
+		const file = formData.get("image_file") as File | null;
+		const hasUpload = file && file.size > 0;
 
-	if (hasUpload) {
-		imageUrl = await uploadImage(file, "professionals");
-	} else {
-		imageUrl = getOptionalString(formData, "image_url") ?? "/profile.jpg";
-	}
-
-	const supabase = createAdminClient();
-	const { error } = await supabase.from("professionals").insert({
-		first_name: getRequiredString(formData, "first_name"),
-		last_name: getRequiredString(formData, "last_name"),
-		role: getRequiredString(formData, "role"),
-		bio: getOptionalString(formData, "bio"),
-		image_url: imageUrl,
-		is_active: true,
-		order_index: getOptionalNumber(formData, "order_index"),
-	});
-
-	if (error) {
 		if (hasUpload) {
-			await deleteImage(imageUrl);
+			imageUrl = await uploadImage(file, "professionals");
+		} else {
+			imageUrl = getOptionalString(formData, "image_url") ?? "/profile.jpg";
 		}
-		assertMutationSucceeded("professionals", error);
-	}
 
-	revalidateProfessionalPaths();
-}
-
-export async function updateProfessional(formData: FormData) {
-	await requireAdmin();
-
-	const id = getRequiredString(formData, "id");
-	const existingImageUrl = getOptionalString(formData, "existing_image_url");
-
-	let imageUrl = existingImageUrl;
-	const file = formData.get("image_file") as File | null;
-	const hasUpload = file && file.size > 0;
-
-	if (hasUpload) {
-		imageUrl = await uploadImage(file, "professionals");
-	}
-
-	const supabase = createAdminClient();
-	const { error } = await supabase
-		.from("professionals")
-		.update({
+		const supabase = createAdminClient();
+		const orderIndex = await getNextOrderIndex(supabase, "professionals");
+		const { error } = await supabase.from("professionals").insert({
 			first_name: getRequiredString(formData, "first_name"),
 			last_name: getRequiredString(formData, "last_name"),
 			role: getRequiredString(formData, "role"),
 			bio: getOptionalString(formData, "bio"),
 			image_url: imageUrl,
-			is_active: formData.get("is_active") === "on",
-			order_index: getOptionalNumber(formData, "order_index"),
-		})
-		.eq("id", id);
+			is_active: true,
+			order_index: orderIndex,
+		});
 
-	if (error) {
-		if (hasUpload && imageUrl) {
-			await deleteImage(imageUrl);
+		if (error) {
+			if (hasUpload) {
+				await deleteImage(imageUrl);
+			}
+			assertMutationSucceeded("professionals", error);
 		}
-		assertMutationSucceeded("professionals", error);
-	}
 
-	if (hasUpload && existingImageUrl) {
-		await deleteImage(existingImageUrl);
+		revalidateProfessionalPaths();
+		return { status: "success" };
+	} catch (error) {
+		return toActionError(error);
 	}
+}
 
-	revalidateProfessionalPaths();
+export async function updateProfessional(
+	_prevState: ActionResult,
+	formData: FormData,
+): Promise<ActionResult> {
+	try {
+		await requireAdmin();
+
+		const id = getRequiredString(formData, "id");
+		const existingImageUrl = getOptionalString(formData, "existing_image_url");
+
+		let imageUrl = existingImageUrl;
+		const file = formData.get("image_file") as File | null;
+		const hasUpload = file && file.size > 0;
+
+		if (hasUpload) {
+			imageUrl = await uploadImage(file, "professionals");
+		}
+
+		const supabase = createAdminClient();
+		const { error } = await supabase
+			.from("professionals")
+			.update({
+				first_name: getRequiredString(formData, "first_name"),
+				last_name: getRequiredString(formData, "last_name"),
+				role: getRequiredString(formData, "role"),
+				bio: getOptionalString(formData, "bio"),
+				image_url: imageUrl,
+				is_active: formData.get("is_active") === "on",
+			})
+			.eq("id", id);
+
+		if (error) {
+			if (hasUpload && imageUrl) {
+				await deleteImage(imageUrl);
+			}
+			assertMutationSucceeded("professionals", error);
+		}
+
+		if (hasUpload && existingImageUrl) {
+			await deleteImage(existingImageUrl);
+		}
+
+		revalidateProfessionalPaths();
+		return { status: "success" };
+	} catch (error) {
+		return toActionError(error);
+	}
 }
 
 export async function deleteProfessional(formData: FormData) {
@@ -588,84 +821,105 @@ export async function deleteProfessional(formData: FormData) {
 	revalidateProfessionalPaths();
 }
 
-export async function createActivity(formData: FormData) {
-	await requireAdmin();
+export async function createActivity(
+	_prevState: ActionResult,
+	formData: FormData,
+): Promise<ActionResult> {
+	try {
+		await requireAdmin();
 
-	let imageUrl = getOptionalString(formData, "image_url");
-	const file = formData.get("image_file") as File | null;
-	const hasUpload = file && file.size > 0;
+		let imageUrl = getOptionalString(formData, "image_url");
+		const file = formData.get("image_file") as File | null;
+		const hasUpload = file && file.size > 0;
 
-	if (hasUpload) {
-		imageUrl = await uploadImage(file, "activities");
-	}
-
-	const payload = {
-		title: getRequiredString(formData, "title"),
-		description: getRequiredString(formData, "description"),
-		category: getRequiredString(formData, "category"),
-		icon: normalizeActivityIcon(formData.get("icon")),
-		image_url: imageUrl,
-		schedule_info: getOptionalString(formData, "schedule_info"),
-		is_active: getCheckboxBoolean(formData, "is_active", true),
-		order_index: getOptionalNumber(formData, "order_index"),
-	};
-
-	const supabase = createAdminClient();
-	const { error } = await supabase.from("activities").insert(payload);
-
-	if (error) {
-		if (hasUpload && imageUrl) {
-			await deleteImage(imageUrl);
+		if (hasUpload) {
+			imageUrl = await uploadImage(file, "activities");
 		}
-		assertMutationSucceeded("activities", error);
-	}
 
-	revalidateActivityPaths();
+		const supabase = createAdminClient();
+		const orderIndex = await getNextOrderIndex(supabase, "activities");
+		const payload = {
+			title: getRequiredString(formData, "title"),
+			description: getRequiredString(formData, "description"),
+			category: getRequiredString(formData, "category"),
+			icon: normalizeActivityIcon(formData.get("icon")),
+			image_url: imageUrl,
+			schedule_info: getOptionalString(formData, "schedule_info"),
+			is_active: getCheckboxBoolean(formData, "is_active", true),
+			order_index: orderIndex,
+		};
+
+		const { error } = await supabase.from("activities").insert(payload);
+
+		if (error) {
+			if (hasUpload && imageUrl) {
+				await deleteImage(imageUrl);
+			}
+			assertMutationSucceeded("activities", error);
+		}
+
+		revalidateActivityPaths();
+		return { status: "success" };
+	} catch (error) {
+		return toActionError(error);
+	}
 }
 
-export async function updateActivity(formData: FormData) {
-	await requireAdmin();
+export async function updateActivity(
+	_prevState: ActionResult,
+	formData: FormData,
+): Promise<ActionResult> {
+	try {
+		await requireAdmin();
 
-	const id = getRequiredString(formData, "id");
-	const existingImageUrl = getOptionalString(formData, "existing_image_url");
+		const id = getRequiredString(formData, "id");
+		const existingImageUrl = getOptionalString(formData, "existing_image_url");
 
-	let imageUrl = existingImageUrl;
-	const file = formData.get("image_file") as File | null;
-	const hasUpload = file && file.size > 0;
+		let imageUrl = existingImageUrl;
+		const file = formData.get("image_file") as File | null;
+		const hasUpload = file && file.size > 0;
 
-	if (hasUpload) {
-		imageUrl = await uploadImage(file, "activities");
-	}
-
-	const payload = {
-		title: getRequiredString(formData, "title"),
-		description: getRequiredString(formData, "description"),
-		category: getRequiredString(formData, "category"),
-		icon: normalizeActivityIcon(formData.get("icon")),
-		image_url: imageUrl,
-		schedule_info: getOptionalString(formData, "schedule_info"),
-		is_active: getCheckboxBoolean(formData, "is_active"),
-		order_index: getOptionalNumber(formData, "order_index"),
-	};
-
-	const supabase = createAdminClient();
-	const { error } = await supabase
-		.from("activities")
-		.update(payload)
-		.eq("id", id);
-
-	if (error) {
-		if (hasUpload && imageUrl) {
-			await deleteImage(imageUrl);
+		if (hasUpload) {
+			imageUrl = await uploadImage(file, "activities");
 		}
-		assertMutationSucceeded("activities", error);
-	}
 
-	if (hasUpload && existingImageUrl) {
-		await deleteImage(existingImageUrl);
-	}
+		// The activities form has no image input, so neither image_file nor
+		// existing_image_url is present on a normal edit. Only include image_url
+		// when an image is actually provided (fresh upload or an explicit
+		// existing_image_url) — omitting the column preserves the stored value
+		// instead of nulling it. Mirrors how objectives preserves its icon.
+		const payload = {
+			title: getRequiredString(formData, "title"),
+			description: getRequiredString(formData, "description"),
+			category: getRequiredString(formData, "category"),
+			icon: normalizeActivityIcon(formData.get("icon")),
+			...(imageUrl != null ? { image_url: imageUrl } : {}),
+			schedule_info: getOptionalString(formData, "schedule_info"),
+			is_active: getCheckboxBoolean(formData, "is_active"),
+		};
 
-	revalidateActivityPaths();
+		const supabase = createAdminClient();
+		const { error } = await supabase
+			.from("activities")
+			.update(payload)
+			.eq("id", id);
+
+		if (error) {
+			if (hasUpload && imageUrl) {
+				await deleteImage(imageUrl);
+			}
+			assertMutationSucceeded("activities", error);
+		}
+
+		if (hasUpload && existingImageUrl) {
+			await deleteImage(existingImageUrl);
+		}
+
+		revalidateActivityPaths();
+		return { status: "success" };
+	} catch (error) {
+		return toActionError(error);
+	}
 }
 
 export async function toggleActivity(formData: FormData) {
@@ -678,22 +932,6 @@ export async function toggleActivity(formData: FormData) {
 	const { error } = await supabase
 		.from("activities")
 		.update({ is_active: isActive })
-		.eq("id", id);
-
-	assertMutationSucceeded("activities", error);
-	revalidateActivityPaths();
-}
-
-export async function updateActivityOrder(formData: FormData) {
-	await requireAdmin();
-
-	const id = getRequiredString(formData, "id");
-	const orderIndex = getOptionalNumber(formData, "order_index");
-
-	const supabase = createAdminClient();
-	const { error } = await supabase
-		.from("activities")
-		.update({ order_index: orderIndex })
 		.eq("id", id);
 
 	assertMutationSucceeded("activities", error);
@@ -724,80 +962,96 @@ export async function deleteActivity(formData: FormData) {
 	revalidateActivityPaths();
 }
 
-export async function createGalleryItem(formData: FormData) {
-	await requireAdmin();
+export async function createGalleryItem(
+	_prevState: ActionResult,
+	formData: FormData,
+): Promise<ActionResult> {
+	try {
+		await requireAdmin();
 
-	const file = formData.get("image_file") as File | null;
-	const hasUpload = file && file.size > 0;
+		const file = formData.get("image_file") as File | null;
+		const hasUpload = file && file.size > 0;
 
-	let imageUrl = "";
-	if (hasUpload) {
-		imageUrl = await uploadImage(file, "gallery");
-	} else {
-		imageUrl = getRequiredString(formData, "image_url");
-	}
-
-	const payload = {
-		title: getRequiredString(formData, "title"),
-		category: getRequiredString(formData, "category"),
-		image_url: imageUrl,
-		is_active: getCheckboxBoolean(formData, "is_active", true),
-		order_index: getOptionalNumber(formData, "order_index"),
-	};
-
-	const supabase = createAdminClient();
-	const { error } = await supabase.from("gallery_items").insert(payload);
-
-	if (error) {
+		let imageUrl = "";
 		if (hasUpload) {
-			await deleteImage(imageUrl);
+			imageUrl = await uploadImage(file, "gallery");
+		} else {
+			imageUrl = getRequiredString(formData, "image_url");
 		}
-		assertMutationSucceeded("gallery_items", error);
-	}
 
-	revalidateGalleryPaths();
+		const supabase = createAdminClient();
+		const orderIndex = await getNextOrderIndex(supabase, "gallery_items");
+		const payload = {
+			title: getRequiredString(formData, "title"),
+			category: getRequiredString(formData, "category"),
+			image_url: imageUrl,
+			is_active: getCheckboxBoolean(formData, "is_active", true),
+			order_index: orderIndex,
+		};
+
+		const { error } = await supabase.from("gallery_items").insert(payload);
+
+		if (error) {
+			if (hasUpload) {
+				await deleteImage(imageUrl);
+			}
+			assertMutationSucceeded("gallery_items", error);
+		}
+
+		revalidateGalleryPaths();
+		return { status: "success" };
+	} catch (error) {
+		return toActionError(error);
+	}
 }
 
-export async function updateGalleryItem(formData: FormData) {
-	await requireAdmin();
+export async function updateGalleryItem(
+	_prevState: ActionResult,
+	formData: FormData,
+): Promise<ActionResult> {
+	try {
+		await requireAdmin();
 
-	const id = getRequiredString(formData, "id");
-	const existingImageUrl = getOptionalString(formData, "existing_image_url");
+		const id = getRequiredString(formData, "id");
+		const existingImageUrl = getOptionalString(formData, "existing_image_url");
 
-	let imageUrl = existingImageUrl;
-	const file = formData.get("image_file") as File | null;
-	const hasUpload = file && file.size > 0;
+		let imageUrl = existingImageUrl;
+		const file = formData.get("image_file") as File | null;
+		const hasUpload = file && file.size > 0;
 
-	if (hasUpload) {
-		imageUrl = await uploadImage(file, "gallery");
-	}
-
-	const payload = {
-		title: getRequiredString(formData, "title"),
-		category: getRequiredString(formData, "category"),
-		image_url: imageUrl,
-		is_active: getCheckboxBoolean(formData, "is_active"),
-		order_index: getOptionalNumber(formData, "order_index"),
-	};
-
-	const supabase = createAdminClient();
-	const { error } = await supabase
-		.from("gallery_items")
-		.update(payload)
-		.eq("id", id);
-
-	if (error) {
-		if (hasUpload && imageUrl) {
-			await deleteImage(imageUrl);
+		if (hasUpload) {
+			imageUrl = await uploadImage(file, "gallery");
 		}
-		assertMutationSucceeded("gallery_items", error);
-	}
 
-	if (hasUpload && existingImageUrl) {
-		await deleteImage(existingImageUrl);
-	}
+		const payload = {
+			title: getRequiredString(formData, "title"),
+			category: getRequiredString(formData, "category"),
+			image_url: imageUrl,
+			is_active: getCheckboxBoolean(formData, "is_active"),
+		};
 
-	revalidateGalleryPaths();
+		const supabase = createAdminClient();
+		const { error } = await supabase
+			.from("gallery_items")
+			.update(payload)
+			.eq("id", id);
+
+		if (error) {
+			if (hasUpload && imageUrl) {
+				await deleteImage(imageUrl);
+			}
+			assertMutationSucceeded("gallery_items", error);
+		}
+
+		if (hasUpload && existingImageUrl) {
+			await deleteImage(existingImageUrl);
+		}
+
+		revalidateGalleryPaths();
+		return { status: "success" };
+	} catch (error) {
+		return toActionError(error);
+	}
 }
 
 export async function toggleGalleryItem(formData: FormData) {
@@ -810,22 +1064,6 @@ export async function toggleGalleryItem(formData: FormData) {
 	const { error } = await supabase
 		.from("gallery_items")
 		.update({ is_active: isActive })
-		.eq("id", id);
-
-	assertMutationSucceeded("gallery_items", error);
-	revalidateGalleryPaths();
-}
-
-export async function updateGalleryItemOrder(formData: FormData) {
-	await requireAdmin();
-
-	const id = getRequiredString(formData, "id");
-	const orderIndex = getOptionalNumber(formData, "order_index");
-
-	const supabase = createAdminClient();
-	const { error } = await supabase
-		.from("gallery_items")
-		.update({ order_index: orderIndex })
 		.eq("id", id);
 
 	assertMutationSucceeded("gallery_items", error);
@@ -862,40 +1100,56 @@ function revalidateObjectivePaths() {
 	revalidatePath("/");
 }
 
-export async function createHomeObjective(formData: FormData) {
-	await requireAdmin();
+export async function createHomeObjective(
+	_prevState: ActionResult,
+	formData: FormData,
+): Promise<ActionResult> {
+	try {
+		await requireAdmin();
 
-	const supabase = createAdminClient();
-	const { error } = await supabase.from("home_objectives").insert({
-		title: getRequiredString(formData, "title"),
-		description: getRequiredString(formData, "description"),
-		icon: getOptionalString(formData, "icon") ?? "fa-check",
-		is_active: true,
-		order_index: getOptionalNumber(formData, "order_index"),
-	});
-
-	assertMutationSucceeded("home_objectives", error);
-	revalidateObjectivePaths();
-}
-
-export async function updateHomeObjective(formData: FormData) {
-	await requireAdmin();
-
-	const id = getRequiredString(formData, "id");
-	const supabase = createAdminClient();
-	const { error } = await supabase
-		.from("home_objectives")
-		.update({
+		const supabase = createAdminClient();
+		const orderIndex = await getNextOrderIndex(supabase, "home_objectives");
+		const { error } = await supabase.from("home_objectives").insert({
 			title: getRequiredString(formData, "title"),
 			description: getRequiredString(formData, "description"),
 			icon: getOptionalString(formData, "icon") ?? "fa-check",
-			is_active: formData.get("is_active") === "on",
-			order_index: getOptionalNumber(formData, "order_index"),
-		})
-		.eq("id", id);
+			is_active: true,
+			order_index: orderIndex,
+		});
 
-	assertMutationSucceeded("home_objectives", error);
-	revalidateObjectivePaths();
+		assertMutationSucceeded("home_objectives", error);
+		revalidateObjectivePaths();
+		return { status: "success" };
+	} catch (error) {
+		return toActionError(error);
+	}
+}
+
+export async function updateHomeObjective(
+	_prevState: ActionResult,
+	formData: FormData,
+): Promise<ActionResult> {
+	try {
+		await requireAdmin();
+
+		const id = getRequiredString(formData, "id");
+		const supabase = createAdminClient();
+		const { error } = await supabase
+			.from("home_objectives")
+			.update({
+				title: getRequiredString(formData, "title"),
+				description: getRequiredString(formData, "description"),
+				icon: getOptionalString(formData, "icon") ?? "fa-check",
+				is_active: formData.get("is_active") === "on",
+			})
+			.eq("id", id);
+
+		assertMutationSucceeded("home_objectives", error);
+		revalidateObjectivePaths();
+		return { status: "success" };
+	} catch (error) {
+		return toActionError(error);
+	}
 }
 
 export async function deleteHomeObjective(formData: FormData) {
@@ -922,22 +1176,6 @@ export async function toggleHomeObjective(formData: FormData) {
 	const { error } = await supabase
 		.from("home_objectives")
 		.update({ is_active: isActive })
-		.eq("id", id);
-
-	assertMutationSucceeded("home_objectives", error);
-	revalidateObjectivePaths();
-}
-
-export async function updateHomeObjectiveOrder(formData: FormData) {
-	await requireAdmin();
-
-	const id = getRequiredString(formData, "id");
-	const orderIndex = getOptionalNumber(formData, "order_index");
-
-	const supabase = createAdminClient();
-	const { error } = await supabase
-		.from("home_objectives")
-		.update({ order_index: orderIndex })
 		.eq("id", id);
 
 	assertMutationSucceeded("home_objectives", error);
