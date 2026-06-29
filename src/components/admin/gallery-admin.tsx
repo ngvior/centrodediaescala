@@ -1,7 +1,7 @@
 "use client";
 
-import { type ReactNode } from "react";
-import { Edit2, Plus, Trash2 } from "lucide-react";
+import { type ReactNode, useState } from "react";
+import { Edit2, Eye, Plus, Trash2 } from "lucide-react";
 
 import {
 	createGalleryItem,
@@ -10,9 +10,15 @@ import {
 	type AdminGalleryItem,
 } from "@/actions/admin";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import {
+	DetailDialog,
+	type DetailField,
+} from "@/components/admin/detail-dialog";
 import { FormError } from "@/components/admin/form-error";
+import { ImageLightbox } from "@/components/admin/image-lightbox";
 import { ImageUploadField } from "@/components/admin/image-upload-field";
-import { SortableList } from "@/components/admin/sortable-list";
+import { SortableTable, SortableTableRows } from "@/components/admin/sortable-table";
+import { StatusBadge } from "@/components/admin/status-badge";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { useActionDialog } from "@/components/admin/use-action-dialog";
 import { useDeleteAction } from "@/components/admin/use-delete-action";
@@ -67,20 +73,24 @@ function GalleryRow({
 		useActionDialog(updateGalleryItem);
 	const { confirmOpen, setConfirmOpen, isDeleting, handleDelete } =
 		useDeleteAction(deleteGalleryItem);
+	const [detailOpen, setDetailOpen] = useState(false);
+
+	const detailFields: DetailField[] = [
+		{ label: "Título", value: item.title },
+		{ label: "Categoría", value: item.category },
+		{
+			label: "Imagen",
+			value: <ImageLightbox src={item.image_url} alt="" title={item.title} />,
+		},
+		{ label: "Estado", value: <StatusBadge active={item.is_active} /> },
+	];
 
 	return (
 		<>
 			<TableCell className="w-10">{handle}</TableCell>
 			<TableCell>
 				<div className="flex items-center gap-3">
-					{item.image_url ? (
-						// eslint-disable-next-line @next/next/no-img-element -- admin-only thumbnail of arbitrary Supabase URLs; next/image needs remote config.
-						<img
-							src={item.image_url}
-							alt=""
-							className="h-10 w-10 rounded object-cover"
-						/>
-					) : null}
+					<ImageLightbox src={item.image_url} alt="" title={item.title} />
 					<span className="font-medium">{item.title}</span>
 				</div>
 			</TableCell>
@@ -98,6 +108,29 @@ function GalleryRow({
 			</TableCell>
 			<TableCell className="text-right">
 				<div className="flex justify-end gap-2">
+					<Button
+						variant="ghost"
+						size="icon"
+						className="text-muted-foreground hover:text-primary"
+						onClick={() => setDetailOpen(true)}
+					>
+						<Eye className="h-4 w-4" />
+						<span className="sr-only">Ver detalle</span>
+					</Button>
+					<DetailDialog
+						open={detailOpen}
+						onOpenChange={setDetailOpen}
+						title={item.title}
+						fields={detailFields}
+						onEdit={() => {
+							setDetailOpen(false);
+							setOpen(true);
+						}}
+						onDelete={() => {
+							setDetailOpen(false);
+							setConfirmOpen(true);
+						}}
+					/>
 					<Dialog open={open} onOpenChange={setOpen}>
 						<DialogTrigger
 							render={
@@ -204,42 +237,44 @@ export function GalleryAdmin({ items }: { items: AdminGalleryItem[] }) {
 				</Dialog>
 			</div>
 
-			<Card className="border-border bg-white shadow-sm">
-				<CardContent className="p-0">
-					<Table>
-						<TableHeader>
-							<TableRow>
-								<TableHead className="w-10" />
-								<TableHead>Imagen</TableHead>
-								<TableHead>Categoría</TableHead>
-								<TableHead>Estado</TableHead>
-								<TableHead className="text-right">Acciones</TableHead>
-							</TableRow>
-						</TableHeader>
-						<TableBody>
-							<SortableList
-								items={items}
-								getId={(item) => item.id}
-								onReorder={handleReorder}
-								renderRow={(item, handle) => (
-									<GalleryRow item={item} handle={handle} />
-								)}
-							/>
-							{items.length === 0 ? (
+			<SortableTable
+				items={items}
+				getId={(item) => item.id}
+				onReorder={handleReorder}
+				renderRow={(item, handle) => (
+					<GalleryRow item={item} handle={handle} />
+				)}
+			>
+				<Card className="border-border bg-white shadow-sm">
+					<CardContent className="p-0">
+						<Table>
+							<TableHeader>
 								<TableRow>
-									{/* +1 covers the drag-handle column that precedes COLUMN_COUNT data columns. */}
-									<TableCell
-										colSpan={COLUMN_COUNT + 1}
-										className="py-8 text-center text-muted-foreground"
-									>
-										No hay imágenes cargadas.
-									</TableCell>
+									<TableHead className="w-10" />
+									<TableHead>Imagen</TableHead>
+									<TableHead>Categoría</TableHead>
+									<TableHead>Estado</TableHead>
+									<TableHead className="text-right">Acciones</TableHead>
 								</TableRow>
-							) : null}
-						</TableBody>
-					</Table>
-				</CardContent>
-			</Card>
+							</TableHeader>
+							<TableBody>
+								<SortableTableRows />
+								{items.length === 0 ? (
+									<TableRow>
+										{/* +1 covers the drag-handle column that precedes COLUMN_COUNT data columns. */}
+										<TableCell
+											colSpan={COLUMN_COUNT + 1}
+											className="py-8 text-center text-muted-foreground"
+										>
+											No hay imágenes cargadas.
+										</TableCell>
+									</TableRow>
+								) : null}
+							</TableBody>
+						</Table>
+					</CardContent>
+				</Card>
+			</SortableTable>
 		</div>
 	);
 }

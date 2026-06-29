@@ -1,7 +1,7 @@
 "use client";
 
-import { type ReactNode } from "react";
-import { Edit2, Plus, Trash2 } from "lucide-react";
+import { type ReactNode, useState } from "react";
+import { Edit2, Eye, Plus, Trash2 } from "lucide-react";
 
 import {
 	createActivity,
@@ -14,8 +14,13 @@ import {
 	ActivityIconPreview,
 } from "@/components/admin/activity-icon-field";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import {
+	DetailDialog,
+	type DetailField,
+} from "@/components/admin/detail-dialog";
 import { FormError } from "@/components/admin/form-error";
-import { SortableList } from "@/components/admin/sortable-list";
+import { SortableTable, SortableTableRows } from "@/components/admin/sortable-table";
+import { StatusBadge } from "@/components/admin/status-badge";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { useActionDialog } from "@/components/admin/use-action-dialog";
 import { useDeleteAction } from "@/components/admin/use-delete-action";
@@ -86,6 +91,16 @@ function ActivityRow({
 		useActionDialog(updateActivity);
 	const { confirmOpen, setConfirmOpen, isDeleting, handleDelete } =
 		useDeleteAction(deleteActivity);
+	const [detailOpen, setDetailOpen] = useState(false);
+
+	const detailFields: DetailField[] = [
+		{ label: "Título", value: item.title },
+		{ label: "Categoría", value: item.category },
+		{ label: "Ícono", value: <ActivityIconPreview slug={item.icon} /> },
+		{ label: "Descripción", value: item.description },
+		{ label: "Horario", value: item.schedule_info ?? "—" },
+		{ label: "Estado", value: <StatusBadge active={item.is_active} /> },
+	];
 
 	return (
 		<>
@@ -113,6 +128,29 @@ function ActivityRow({
 			</TableCell>
 			<TableCell className="text-right">
 				<div className="flex justify-end gap-2">
+					<Button
+						variant="ghost"
+						size="icon"
+						className="text-muted-foreground hover:text-primary"
+						onClick={() => setDetailOpen(true)}
+					>
+						<Eye className="h-4 w-4" />
+						<span className="sr-only">Ver detalle</span>
+					</Button>
+					<DetailDialog
+						open={detailOpen}
+						onOpenChange={setDetailOpen}
+						title={item.title}
+						fields={detailFields}
+						onEdit={() => {
+							setDetailOpen(false);
+							setOpen(true);
+						}}
+						onDelete={() => {
+							setDetailOpen(false);
+							setConfirmOpen(true);
+						}}
+					/>
 					<Dialog open={open} onOpenChange={setOpen}>
 						<DialogTrigger
 							render={
@@ -219,43 +257,45 @@ export function ActivitiesAdmin({ items }: { items: AdminActivity[] }) {
 				</Dialog>
 			</div>
 
-			<Card className="border-border bg-white shadow-sm">
-				<CardContent className="p-0">
-					<Table>
-						<TableHeader>
-							<TableRow>
-								<TableHead className="w-10" />
-								<TableHead>Actividad</TableHead>
-								<TableHead>Categoría</TableHead>
-								<TableHead>Ícono</TableHead>
-								<TableHead>Estado</TableHead>
-								<TableHead className="text-right">Acciones</TableHead>
-							</TableRow>
-						</TableHeader>
-						<TableBody>
-							<SortableList
-								items={items}
-								getId={(item) => item.id}
-								onReorder={handleReorder}
-								renderRow={(item, handle) => (
-									<ActivityRow item={item} handle={handle} />
-								)}
-							/>
-							{items.length === 0 ? (
+			<SortableTable
+				items={items}
+				getId={(item) => item.id}
+				onReorder={handleReorder}
+				renderRow={(item, handle) => (
+					<ActivityRow item={item} handle={handle} />
+				)}
+			>
+				<Card className="border-border bg-white shadow-sm">
+					<CardContent className="p-0">
+						<Table>
+							<TableHeader>
 								<TableRow>
-									{/* +1 covers the drag-handle column that precedes COLUMN_COUNT data columns. */}
-									<TableCell
-										colSpan={COLUMN_COUNT + 1}
-										className="py-8 text-center text-muted-foreground"
-									>
-										No hay actividades cargadas.
-									</TableCell>
+									<TableHead className="w-10" />
+									<TableHead>Actividad</TableHead>
+									<TableHead>Categoría</TableHead>
+									<TableHead>Ícono</TableHead>
+									<TableHead>Estado</TableHead>
+									<TableHead className="text-right">Acciones</TableHead>
 								</TableRow>
-							) : null}
-						</TableBody>
-					</Table>
-				</CardContent>
-			</Card>
+							</TableHeader>
+							<TableBody>
+								<SortableTableRows />
+								{items.length === 0 ? (
+									<TableRow>
+										{/* +1 covers the drag-handle column that precedes COLUMN_COUNT data columns. */}
+										<TableCell
+											colSpan={COLUMN_COUNT + 1}
+											className="py-8 text-center text-muted-foreground"
+										>
+											No hay actividades cargadas.
+										</TableCell>
+									</TableRow>
+								) : null}
+							</TableBody>
+						</Table>
+					</CardContent>
+				</Card>
+			</SortableTable>
 		</div>
 	);
 }
