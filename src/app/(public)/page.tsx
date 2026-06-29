@@ -154,10 +154,6 @@ export default async function Home() {
 			galleryPromise,
 		]);
 
-	// Divide activities in two columns as in legacy
-	const half = Math.ceil(activities.length / 2);
-	const leftActivities = activities.slice(0, half);
-	const rightActivities = activities.slice(half);
 	const complianceHalf = Math.ceil(
 		siteSettings.about_compliance_items.length / 2,
 	);
@@ -253,19 +249,23 @@ export default async function Home() {
 					</div>
 
 					<h5 className="text-center">{siteSettings.about_objectives_title}</h5>
-					<div className="grid grid-cols-1 md:grid-cols-3 gap-12 mb-16">
+					<div className="mx-auto mb-16 flex max-w-[960px] flex-wrap justify-center gap-x-12 gap-y-12">
 						{objectives.map((obj, index) => {
 							const colors = getObjectiveColor(obj.title);
 							const delay = `${index * 150}ms`;
 
 							return (
-								<ObjectiveCard
+								<div
 									key={obj.id}
-									title={obj.title}
-									description={obj.description}
-									delay={delay}
-									colors={colors}
-								/>
+									className="w-full sm:w-[calc(50%-24px)] lg:w-[calc(33.33%-32px)]"
+								>
+									<ObjectiveCard
+										title={obj.title}
+										description={obj.description}
+										delay={delay}
+										colors={colors}
+									/>
+								</div>
 							);
 						})}
 					</div>
@@ -315,20 +315,12 @@ export default async function Home() {
 			>
 				<div className="container px-4 md:px-6 mx-auto">
 					<h2>{siteSettings.activities_section_title}</h2>
-					<div className="grid md:grid-cols-2 gap-x-12 gap-y-8 mt-12">
-						{/* Left Column */}
-						<div className="space-y-12">
-							{leftActivities.map((act) => (
-								<ActivitySummary key={act.id} activity={act} />
-							))}
-						</div>
-
-						{/* Right Column */}
-						<div className="space-y-12">
-							{rightActivities.map((act) => (
-								<ActivitySummary key={act.id} activity={act} />
-							))}
-						</div>
+					<div className="mx-auto mt-12 flex max-w-[920px] flex-wrap justify-center gap-x-12 gap-y-12">
+						{activities.map((act) => (
+							<div key={act.id} className="w-full md:w-[calc(50%-24px)]">
+								<ActivitySummary activity={act} />
+							</div>
+						))}
 					</div>
 				</div>
 			</section>
