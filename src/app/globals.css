@@ -5,6 +5,7 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  --animate-flip-in-y: flip-in-y 0.7s ease-out;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-lato);
@@ -46,6 +47,7 @@
   --color-escala-cyan: #00bfd5;
   --color-escala-purple: #a35db4;
   --color-escala-green: #00bc6f;
+  --color-escala-gray: rgb(136, 136, 136);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -53,11 +55,47 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  --animate-legacy-zoom-in: legacy-zoom-in 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+  --animate-legacy-fade-in-up: legacy-fade-in-up 0.6s ease-out both;
+  --animate-legacy-fade-in-down: legacy-fade-in-down 0.6s ease-out both;
+
+  @keyframes legacy-zoom-in {
+    0% {
+      transform: scale3d(0.3, 0.3, 0.3);
+      opacity: 0;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  @keyframes legacy-fade-in-up {
+    0% {
+      transform: translate3d(0, 40px, 0);
+      opacity: 0;
+    }
+    100% {
+      transform: translate3d(0, 0, 0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes legacy-fade-in-down {
+    0% {
+      transform: translate3d(0, -40px, 0);
+      opacity: 0;
+    }
+    100% {
+      transform: translate3d(0, 0, 0);
+      opacity: 1;
+    }
+  }
 }
 
 :root {
   --background: #ffffff;
-  --foreground: #888888;
+  --foreground: #333333;
   --card: #ffffff;
   --card-foreground: #333333;
   --popover: #ffffff;
@@ -67,7 +105,7 @@
   --secondary: #49b5e7;
   --secondary-foreground: #ffffff;
   --muted: #f9f9f9;
-  --muted-foreground: #888888;
+  --muted-foreground: #333333;
   --accent: #f9f9f9;
   --accent-foreground: #333333;
   --destructive: #ff205e;
@@ -150,3 +188,21 @@
     @apply leading-6 m-0;
   }
 }
+
+@keyframes flip-in-y {
+  0% {
+    transform: perspective(1000px) rotateY(90deg);
+    opacity: 0;
+  }
+
+  100% {
+    transform: perspective(1000px) rotateY(0deg);
+    opacity: 1;
+  }
+}
+
+.rounded-button {
+  border-radius: 10px; /* Adjust the value for more or less roundness */
+}
+
+
