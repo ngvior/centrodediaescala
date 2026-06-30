@@ -288,13 +288,16 @@ describe("admin actions", () => {
 		]);
 		actionMocks.createAdminClient.mockReturnValue(client);
 
-		await updateSiteSetting(
-			createFormData({
-				setting_key: "about_requirements_items",
-				setting_type: "JSON",
-				setting_value: JSON.stringify(["DNI", "Certificado"]),
-			}),
-		);
+		await expect(
+			updateSiteSetting(
+				IDLE_STATE,
+				createFormData({
+					setting_key: "about_requirements_items",
+					setting_type: "JSON",
+					setting_value: JSON.stringify(["DNI", "Certificado"]),
+				}),
+			),
+		).resolves.toEqual({ status: "success" });
 
 		expect(actionMocks.requireAdmin).toHaveBeenCalledTimes(1);
 		expect(actionMocks.createAdminClient).toHaveBeenCalledTimes(1);
@@ -318,65 +321,83 @@ describe("admin actions", () => {
 		);
 	});
 
+	// Contract change (PR3): updateSiteSetting is now a useActionState action —
+	// (prevState, formData) => Promise<ActionResult>. Errors are returned in-band
+	// as { status: "error", message } instead of thrown, so the config-page client
+	// island can surface them inline without an error boundary. These four cases
+	// assert the returned error shape rather than a rejection.
 	it("does not create a Supabase admin client when settings auth fails", async () => {
 		actionMocks.requireAdmin.mockRejectedValueOnce(new Error("No autorizado"));
 
 		await expect(
 			updateSiteSetting(
+				IDLE_STATE,
 				createFormData({
 					setting_key: "about_text",
 					setting_type: "RICHTEXT",
 					setting_value: "Texto",
 				}),
 			),
-		).rejects.toThrow("No autorizado");
+		).resolves.toEqual({ status: "error", message: "No autorizado" });
 
 		expect(actionMocks.createAdminClient).not.toHaveBeenCalled();
 		expect(actionMocks.revalidatePath).not.toHaveBeenCalled();
 	});
 
-	it("rejects malformed JSON setting updates before mutating or revalidating", async () => {
+	it("returns an error for malformed JSON setting updates before mutating or revalidating", async () => {
 		await expect(
 			updateSiteSetting(
+				IDLE_STATE,
 				createFormData({
 					setting_key: "about_requirements_items",
 					setting_type: "JSON",
 					setting_value: "{broken-json",
 				}),
 			),
-		).rejects.toThrow("Malformed JSON site setting: about_requirements_items");
+		).resolves.toEqual({
+			status: "error",
+			message: "Malformed JSON site setting: about_requirements_items",
+		});
 
 		expect(actionMocks.requireAdmin).toHaveBeenCalledTimes(1);
 		expect(actionMocks.createAdminClient).not.toHaveBeenCalled();
 		expect(actionMocks.revalidatePath).not.toHaveBeenCalled();
 	});
 
-	it("rejects unknown site setting keys before mutating or revalidating", async () => {
+	it("returns an error for unknown site setting keys before mutating or revalidating", async () => {
 		await expect(
 			updateSiteSetting(
+				IDLE_STATE,
 				createFormData({
 					setting_key: "unknown_public_label",
 					setting_type: "TEXT",
 					setting_value: "Texto",
 				}),
 			),
-		).rejects.toThrow("Configuración desconocida: unknown_public_label");
+		).resolves.toEqual({
+			status: "error",
+			message: "Configuración desconocida: unknown_public_label",
+		});
 
 		expect(actionMocks.requireAdmin).toHaveBeenCalledTimes(1);
 		expect(actionMocks.createAdminClient).not.toHaveBeenCalled();
 		expect(actionMocks.revalidatePath).not.toHaveBeenCalled();
 	});
 
-	it("rejects site setting type mismatches before mutating or revalidating", async () => {
+	it("returns an error for site setting type mismatches before mutating or revalidating", async () => {
 		await expect(
 			updateSiteSetting(
+				IDLE_STATE,
 				createFormData({
 					setting_key: "about_text",
 					setting_type: "TEXT",
 					setting_value: "Texto",
 				}),
 			),
-		).rejects.toThrow("Tipo inválido para about_text");
+		).resolves.toEqual({
+			status: "error",
+			message: "Tipo inválido para about_text",
+		});
 
 		expect(actionMocks.requireAdmin).toHaveBeenCalledTimes(1);
 		expect(actionMocks.createAdminClient).not.toHaveBeenCalled();

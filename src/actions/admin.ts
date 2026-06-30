@@ -639,42 +639,50 @@ export async function getAdminSiteSettings(): Promise<AdminSiteSetting[]> {
 	return buildAdminSiteSettings(rows);
 }
 
-export async function updateSiteSetting(formData: FormData) {
-	await requireAdmin();
+export async function updateSiteSetting(
+	_prevState: ActionResult,
+	formData: FormData,
+): Promise<ActionResult> {
+	try {
+		await requireAdmin();
 
-	const settingKey = getRequiredString(formData, "setting_key");
-	const settingType = getRequiredString(formData, "setting_type");
-	const rawValue = formData.get("setting_value");
+		const settingKey = getRequiredString(formData, "setting_key");
+		const settingType = getRequiredString(formData, "setting_type");
+		const rawValue = formData.get("setting_value");
 
-	if (typeof rawValue !== "string") {
-		throw new Error("El valor de configuración es obligatorio");
+		if (typeof rawValue !== "string") {
+			throw new Error("El valor de configuración es obligatorio");
+		}
+
+		const normalizedValue = normalizeSiteSettingValue(
+			settingKey,
+			rawValue,
+			settingType,
+		);
+		const definition = getSiteSettingDefinition(settingKey);
+
+		if (!definition) {
+			throw new Error(`Configuración desconocida: ${settingKey}`);
+		}
+
+		const supabase = createAdminClient();
+		const { error } = await supabase
+			.from("site_settings")
+			.update({
+				setting_group: definition.group,
+				setting_value: normalizedValue,
+				setting_type: definition.type,
+				description: definition.description,
+				updated_at: new Date().toISOString(),
+			})
+			.eq("setting_key", definition.key);
+
+		assertMutationSucceeded("site_settings", error);
+		revalidateSiteSettingPaths();
+		return { status: "success" };
+	} catch (error) {
+		return toActionError(error);
 	}
-
-	const normalizedValue = normalizeSiteSettingValue(
-		settingKey,
-		rawValue,
-		settingType,
-	);
-	const definition = getSiteSettingDefinition(settingKey);
-
-	if (!definition) {
-		throw new Error(`Configuración desconocida: ${settingKey}`);
-	}
-
-	const supabase = createAdminClient();
-	const { error } = await supabase
-		.from("site_settings")
-		.update({
-			setting_group: definition.group,
-			setting_value: normalizedValue,
-			setting_type: definition.type,
-			description: definition.description,
-			updated_at: new Date().toISOString(),
-		})
-		.eq("setting_key", definition.key);
-
-	assertMutationSucceeded("site_settings", error);
-	revalidateSiteSettingPaths();
 }
 
 export async function updateInterviewRequestCrm(formData: FormData) {
