@@ -17,6 +17,7 @@ import { Check, CheckCircle2, Clock, Mail, MapPin, Phone } from "lucide-react";
 import Image from "next/image";
 
 import { getActivityIcon } from "@/lib/activity-icons";
+import { renderInline, renderMarkupBlocks } from "@/lib/markup";
 
 const CONTACT_MAP_EMBED_URL =
 	"https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3282.074723619188!2d-58.49996178756245!3d-34.65281577282383!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x95bcc907d6712975%3A0x45f1a9314f8321b3!2sESCALA%20CENTRO%20DE%20D%C3%8DA!5e0!3m2!1sen!2sar!4v1780450210353!5m2!1sen!2sar";
@@ -89,33 +90,10 @@ function getObjectiveColor(title: string) {
 
 const ACTIVITY_ICON_COLOR = "#1593D7";
 
-const BOLD_SEGMENT_RE = /\*\*([^*\r\n]+?)\*\*/g;
-
+// Thin wrapper over the shared grammar: activity descriptions keep their
+// inline bold/italic behavior (newlines preserved via whitespace-pre-line).
 function renderDescriptionWithBold(text: string): ReactNode[] {
-	const nodes: ReactNode[] = [];
-	let lastIndex = 0;
-
-	for (const match of text.matchAll(BOLD_SEGMENT_RE)) {
-		const matchIndex = match.index ?? 0;
-
-		if (matchIndex > lastIndex) {
-			nodes.push(text.slice(lastIndex, matchIndex));
-		}
-
-		nodes.push(
-			<strong key={`bold-${matchIndex}`} className="font-semibold text-inherit">
-				{match[1]}
-			</strong>,
-		);
-
-		lastIndex = matchIndex + match[0].length;
-	}
-
-	if (lastIndex < text.length) {
-		nodes.push(text.slice(lastIndex));
-	}
-
-	return nodes;
+	return renderInline(text);
 }
 
 function ActivitySummary({ activity }: { activity: Activity }) {
@@ -220,9 +198,9 @@ export default async function Home() {
 							<h2 className="text-[48px] text-[#49b5e7] font-bold mb-6 text-left m-0">
 								{siteSettings.home_hero_title}
 							</h2>
-							<p className="text-[16px] text-escala-gray leading-[26px] mb-8">
-								{siteSettings.home_hero_text}
-							</p>
+							<div className="text-[16px] text-escala-gray leading-[26px] mb-8">
+								{renderMarkupBlocks(siteSettings.home_hero_text)}
+							</div>
 							<a
 								href="#service"
 								className="inline-block px-10 py-4 text-white text-[16px] font-semibold uppercase bg-primary rounded-full hover:bg-secondary transition-colors duration-300"
@@ -243,9 +221,11 @@ export default async function Home() {
 
 					{/* Legacy twitter-feed style intro text */}
 					<div className="bg-[#49b5e7] p-8 text-center text-white mb-16 rounded-sm shadow-md">
-						<p className="text-lg leading-relaxed text-white">
-							{siteSettings.about_text}
-						</p>
+						<div className="text-lg leading-relaxed text-white">
+							{renderMarkupBlocks(siteSettings.about_text, {
+								listClassName: "list-disc pl-5 space-y-1 text-left",
+							})}
+						</div>
 					</div>
 
 					<h5 className="text-center">{siteSettings.about_objectives_title}</h5>
@@ -272,7 +252,9 @@ export default async function Home() {
 
 					<div className="border-t border-[#e5e5e5] pt-12">
 						<h4 className="mb-4">{siteSettings.about_facilities_title}</h4>
-						<p className="mb-8">{siteSettings.about_facilities_text}</p>
+						<div className="mb-8">
+							{renderMarkupBlocks(siteSettings.about_facilities_text)}
+						</div>
 
 						<h3 className="mb-6 font-bold text-lg">
 							{siteSettings.about_compliance_title}
@@ -292,7 +274,9 @@ export default async function Home() {
 
 						<h4 className="mb-4">{siteSettings.about_requirements_title}</h4>
 						<div className="bg-[#f5f5f5] p-6 rounded border border-[#e3e3e3]">
-							<p className="mb-4">{siteSettings.about_requirements_text}</p>
+							<div className="mb-4">
+								{renderMarkupBlocks(siteSettings.about_requirements_text)}
+							</div>
 							<p className="font-semibold mb-2">
 								{siteSettings.about_requirements_label}
 							</p>
@@ -383,9 +367,9 @@ export default async function Home() {
 						<h3 className="text-2xl text-primary font-bold mb-4">
 							{siteSettings.contact_text}
 						</h3>
-						<p className="text-lg text-muted-foreground mb-12">
-							{siteSettings.contact_body_text}
-						</p>
+						<div className="text-lg text-muted-foreground mb-12">
+							{renderMarkupBlocks(siteSettings.contact_body_text)}
+						</div>
 
 						<div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
 							{contactItems.map(
@@ -429,7 +413,9 @@ export default async function Home() {
 						<InterviewRequestForm
 							copy={{
 								title: siteSettings.interview_form_title,
-								description: siteSettings.interview_form_description,
+								description: renderMarkupBlocks(
+									siteSettings.interview_form_description,
+								),
 								contactNameLabel:
 									siteSettings.interview_form_contact_name_label,
 								patientNameLabel:

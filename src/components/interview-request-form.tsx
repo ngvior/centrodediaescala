@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, type ReactNode } from 'react'
 
 import {
   submitInterviewRequest,
@@ -18,7 +18,7 @@ const initialState: InterviewSubmissionState = {
 
 export type InterviewRequestFormCopy = {
   title: string
-  description: string
+  description: ReactNode
   contactNameLabel: string
   patientNameLabel: string
   phoneLabel: string
@@ -51,9 +51,9 @@ export function InterviewRequestForm({ copy }: { copy: InterviewRequestFormCopy 
     <form action={formAction} className="mt-12 space-y-6 rounded-lg border border-[#e5e5e5] bg-[#f9f9f9] p-6 text-left shadow-sm">
       <div className="text-center">
         <h3 className="mb-2 text-2xl font-bold text-primary">{copy.title}</h3>
-        <p className="text-sm text-muted-foreground">
+        <div className="text-sm text-muted-foreground">
           {copy.description}
-        </p>
+        </div>
       </div>
 
       <div className="absolute left-[-10000px] top-auto h-px w-px overflow-hidden" aria-hidden="true">
