@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
 	buildAdminSiteSettings,
+	NAVIGATION_SECTIONS,
 	normalizeSiteSettingValue,
 	parsePublicSiteSettings,
+	parseSiteSettingValue,
+	PUBLIC_ANCHORS,
 	SITE_SETTING_DEFINITIONS,
 	type SiteSettingRow,
 	type SiteSettingType,
@@ -107,6 +110,67 @@ describe("site settings optional social links", () => {
 				}),
 			]),
 		);
+	});
+
+	it("only offers navigation sections whose anchors actually exist (no dead links)", () => {
+		// Correction #2: every friendly option must resolve to a real page anchor.
+		// PUBLIC_ANCHORS still contains never-rendered legacy names (#inicio, …),
+		// but those must NOT be offered as choices — only preserved per-row.
+		const realPageAnchors = new Set([
+			"#top_content",
+			"#service",
+			"#work_outer",
+			"#galeria",
+			"#team",
+			"#contact",
+			"camina.html",
+		]);
+
+		for (const section of NAVIGATION_SECTIONS) {
+			expect(PUBLIC_ANCHORS.has(section.href)).toBe(true);
+			expect(realPageAnchors.has(section.href)).toBe(true);
+		}
+
+		const deadAnchors = ["#inicio", "#institucion", "#actividades", "#equipo", "#contacto"];
+		const offered = new Set(NAVIGATION_SECTIONS.map((section) => section.href));
+		for (const dead of deadAnchors) {
+			expect(offered.has(dead)).toBe(false);
+		}
+	});
+
+	it("accepts the JSON shapes produced by the friendly editors", () => {
+		// StringListEditor serializes a trimmed non-empty string[].
+		expect(
+			parseSiteSettingValue(
+				"about_compliance_items",
+				JSON.stringify(["Habilitación municipal", "Seguro vigente"]),
+				"JSON",
+			),
+		).toEqual(["Habilitación municipal", "Seguro vigente"]);
+
+		// NavigationEditor serializes a { label, href }[] using real anchors.
+		expect(
+			parseSiteSettingValue(
+				"header_navigation",
+				JSON.stringify([
+					{ label: "Inicio", href: NAVIGATION_SECTIONS[0].href },
+					{ label: "Contacto", href: "#contact" },
+				]),
+				"JSON",
+			),
+		).toEqual([
+			{ label: "Inicio", href: "#top_content" },
+			{ label: "Contacto", href: "#contact" },
+		]);
+
+		// A preserved legacy anchor still validates (round-trips on save).
+		expect(
+			parseSiteSettingValue(
+				"header_navigation",
+				JSON.stringify([{ label: "Institución", href: "#institucion" }]),
+				"JSON",
+			),
+		).toEqual([{ label: "Institución", href: "#institucion" }]);
 	});
 
 	it("still fails when required non-social settings are missing or empty", () => {
