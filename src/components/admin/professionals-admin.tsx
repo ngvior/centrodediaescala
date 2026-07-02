@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode, useState } from "react";
-import { Edit2, Eye, Plus, Trash2 } from "lucide-react";
+import { Edit2, Eye, Plus, Trash2, Users } from "lucide-react";
 
 import {
 	createProfessional,
@@ -89,14 +89,9 @@ function ProfessionalRow({
 		{ label: "Nombre", value: fullName },
 		{ label: "Rol / Especialidad", value: item.role },
 		{ label: "Bio", value: item.bio ?? "—" },
-		{
-			label: "Imagen",
-			value: item.image_url ? (
-				<ImageLightbox src={item.image_url} alt="" title={fullName} />
-			) : (
-				"—"
-			),
-		},
+		// When the record has no image, keep it as a dl field ("—"); otherwise the
+		// image becomes the dialog's protagonist via the DetailDialog `image` prop.
+		...(item.image_url ? [] : [{ label: "Imagen", value: "—" }]),
 		{ label: "Estado", value: <StatusBadge active={item.is_active} /> },
 	];
 
@@ -121,8 +116,8 @@ function ProfessionalRow({
 				<span
 					className={
 						item.is_active
-							? "rounded bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800"
-							: "rounded bg-muted px-2 py-1 text-xs font-medium text-muted-foreground"
+							? "rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800"
+							: "rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground"
 					}
 				>
 					{item.is_active ? "Activo" : "Inactivo"}
@@ -144,6 +139,16 @@ function ProfessionalRow({
 						onOpenChange={setDetailOpen}
 						title={fullName}
 						fields={detailFields}
+						image={
+							item.image_url ? (
+								<ImageLightbox
+									src={item.image_url}
+									alt=""
+									title={fullName}
+									className="h-44 w-full max-w-[176px] rounded-xl object-cover ring-1 ring-black/10 transition-shadow hover:ring-2 hover:ring-primary/50"
+								/>
+							) : undefined
+						}
 						onEdit={() => {
 							setDetailOpen(false);
 							setOpen(true);
@@ -178,6 +183,7 @@ function ProfessionalRow({
 										type="checkbox"
 										name="is_active"
 										defaultChecked={item.is_active}
+										className="size-4 accent-primary"
 									/>
 									Activo en la web pública
 								</label>
@@ -290,6 +296,10 @@ export function ProfessionalsAdmin({ items }: { items: AdminProfessional[] }) {
 											colSpan={COLUMN_COUNT + 1}
 											className="py-8 text-center text-muted-foreground"
 										>
+											<Users
+												className="mx-auto mb-2 h-6 w-6 text-[#c6ccd4]"
+												aria-hidden
+											/>
 											No hay profesionales cargados.
 										</TableCell>
 									</TableRow>

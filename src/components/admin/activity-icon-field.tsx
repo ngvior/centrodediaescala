@@ -58,7 +58,7 @@ export function ActivityIconField({
 						</option>
 					))}
 				</select>
-				<span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border bg-white">
+				<span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
 					<ActivityIconPreview slug={slug} />
 				</span>
 			</div>

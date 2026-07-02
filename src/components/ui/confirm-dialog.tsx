@@ -1,4 +1,4 @@
-import { Loader2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -44,10 +44,26 @@ export function ConfirmDialog({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent>
 				<DialogHeader>
-					<DialogTitle>{title}</DialogTitle>
-					{description ? (
-						<DialogDescription>{description}</DialogDescription>
-					) : null}
+					{destructive ? (
+						<div className="flex gap-3.5">
+							<div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
+								<Trash2 className="h-[18px] w-[18px]" aria-hidden="true" />
+							</div>
+							<div className="flex flex-col gap-2">
+								<DialogTitle>{title}</DialogTitle>
+								{description ? (
+									<DialogDescription>{description}</DialogDescription>
+								) : null}
+							</div>
+						</div>
+					) : (
+						<>
+							<DialogTitle>{title}</DialogTitle>
+							{description ? (
+								<DialogDescription>{description}</DialogDescription>
+							) : null}
+						</>
+					)}
 				</DialogHeader>
 				<DialogFooter>
 					<DialogClose
@@ -57,6 +73,11 @@ export function ConfirmDialog({
 					</DialogClose>
 					<Button
 						variant={destructive ? "destructive" : "default"}
+						className={
+							destructive
+								? "bg-destructive text-white hover:bg-destructive/90"
+								: undefined
+						}
 						disabled={pending}
 						onClick={() => onConfirm()}
 					>

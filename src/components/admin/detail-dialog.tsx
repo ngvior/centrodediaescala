@@ -20,6 +20,8 @@ type DetailDialogProps = {
 	onOpenChange: (open: boolean) => void;
 	title: string;
 	fields: DetailField[];
+	/** Optional protagonist image rendered beside the fields (e.g. lightbox). */
+	image?: ReactNode;
 	onEdit: () => void;
 	onDelete: () => void;
 	closeLabel?: string;
@@ -42,26 +44,40 @@ export function DetailDialog({
 	onOpenChange,
 	title,
 	fields,
+	image,
 	onEdit,
 	onDelete,
 	closeLabel = "Cerrar",
 	editLabel = "Editar",
 	deleteLabel = "Eliminar",
 }: DetailDialogProps) {
+	const definitionList = (
+		<dl className="grid gap-3.5">
+			{fields.map((field) => (
+				<div key={field.label}>
+					<dt className="text-[10.5px] font-black tracking-[0.09em] text-muted-foreground uppercase">
+						{field.label}
+					</dt>
+					<dd className="text-sm">{field.value}</dd>
+				</div>
+			))}
+		</dl>
+	);
+
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="bg-white sm:max-w-2xl">
 				<DialogHeader>
 					<DialogTitle>{title}</DialogTitle>
 				</DialogHeader>
-				<dl className="grid gap-3">
-					{fields.map((field) => (
-						<div key={field.label}>
-							<dt className="text-xs text-muted-foreground">{field.label}</dt>
-							<dd className="text-sm">{field.value}</dd>
-						</div>
-					))}
-				</dl>
+				{image ? (
+					<div className="grid gap-5 sm:grid-cols-[176px_1fr]">
+						{image}
+						{definitionList}
+					</div>
+				) : (
+					definitionList
+				)}
 				<DialogFooter>
 					<DialogClose render={<Button variant="outline" />}>
 						{closeLabel}
