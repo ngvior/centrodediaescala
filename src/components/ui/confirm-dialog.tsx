@@ -47,7 +47,7 @@ export function ConfirmDialog({
 					{destructive ? (
 						<div className="flex gap-3.5">
 							<div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
-								<Trash2 className="h-4.5 w-4.5" aria-hidden="true" />
+								<Trash2 className="h-[18px] w-[18px]" aria-hidden="true" />
 							</div>
 							<div className="flex flex-col gap-2">
 								<DialogTitle>{title}</DialogTitle>
