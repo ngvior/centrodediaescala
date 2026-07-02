@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Image from "next/image";
 import {
 	Card,
 	CardContent,
@@ -18,19 +19,47 @@ export default function LoginPage() {
 	const [state, formAction] = useActionState(loginAdmin, initialState);
 
 	return (
-		<div className="min-h-screen flex flex-col items-center justify-center bg-muted/30 p-4">
+		<div className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden bg-admin-canvas p-4 [--muted-foreground:#626973] [--radius:10px]">
+			<svg
+				aria-hidden
+				className="pointer-events-none absolute -right-24 -top-28 h-[480px] w-[480px]"
+				viewBox="0 0 400 400"
+			>
+				<g fill="#33506b" opacity="0.06">
+					{Array.from({ length: 12 }).map((_, i) => (
+						<rect
+							key={i}
+							x={240}
+							y={356}
+							width={120}
+							height={8}
+							rx={3}
+							transform={`rotate(${i * -8} 40 360)`}
+						/>
+					))}
+				</g>
+			</svg>
 			<div className="mb-8 text-center">
-				<div className="bg-primary text-white font-bold text-4xl px-4 py-2 rounded mb-2 inline-block">
-					ESCALA
-				</div>
-				<p className="text-muted-foreground font-medium">
+				<Image
+					src="/logo.png"
+					alt="Centro de Día Escala"
+					width={250}
+					height={100}
+					priority
+					className="mx-auto h-[76px] w-auto"
+				/>
+				<p className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground mt-2">
 					Panel de Administración
 				</p>
 			</div>
 
-			<Card className="w-full max-w-md shadow-lg border-none">
+			<Card className="w-full max-w-md shadow-[0_12px_40px_-12px_rgba(16,24,40,0.2)] border-none">
+				<div
+					aria-hidden
+					className="-mt-4 h-[3px] w-full bg-escala-spectrum"
+				/>
 				<CardHeader className="space-y-1 pb-6">
-					<CardTitle className="text-2xl font-bold text-center">
+					<CardTitle className="text-2xl font-bold text-center uppercase tracking-wide">
 						Iniciar Sesión
 					</CardTitle>
 					<CardDescription className="text-center">

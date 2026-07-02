@@ -203,7 +203,7 @@ export function GalleryAdmin({ items }: { items: AdminGalleryItem[] }) {
 		<div className="space-y-6">
 			<div className="flex items-center justify-between">
 				<div>
-					<h1 className="text-3xl font-bold tracking-tight text-foreground">
+					<h1 className="text-3xl font-bold tracking-wide text-foreground">
 						Galería
 					</h1>
 					<p className="text-muted-foreground">

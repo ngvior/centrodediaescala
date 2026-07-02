@@ -8,10 +8,11 @@ import Link from "next/link";
 import {
   Calendar,
   CalendarClock,
+  CheckSquare,
   ClipboardList,
   Image as ImageIcon,
   Inbox,
-  Target,
+  MessageSquare,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -72,11 +73,13 @@ function EntityStatCard({
   return (
     <Card className="border-border shadow-sm">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <Icon className="h-4 w-4 text-muted-foreground" />
+        <CardTitle className="text-sm font-medium uppercase tracking-wide">{title}</CardTitle>
+        <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+          <Icon className="h-4 w-4 text-primary" />
+        </div>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold">
+        <div className="text-2xl font-black">
           {counts.active}
           <span className="text-base font-medium text-muted-foreground">
             {" "}
@@ -100,8 +103,8 @@ const QUICK_LINKS: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/admin/profesionales", label: "Profesionales", icon: Users },
   { href: "/admin/actividades", label: "Actividades", icon: Calendar },
   { href: "/admin/galeria", label: "Galería", icon: ImageIcon },
-  { href: "/admin/objetivos", label: "Objetivos", icon: Target },
-  { href: "/admin/entrevistas", label: "Entrevistas", icon: Inbox },
+  { href: "/admin/objetivos", label: "Objetivos", icon: CheckSquare },
+  { href: "/admin/entrevistas", label: "Entrevistas", icon: MessageSquare },
 ];
 
 export default async function DashboardPage() {
@@ -110,18 +113,20 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">Panel de Control</h1>
+        <h1 className="text-3xl font-bold tracking-wide text-foreground">Panel de Control</h1>
         <p className="text-muted-foreground">Bienvenido al backoffice del Centro de Día Escala.</p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <Card className="border-border shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Entrevistas Pendientes</CardTitle>
-            <Inbox className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium uppercase tracking-wide">Entrevistas Pendientes</CardTitle>
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+              <Inbox className="h-4 w-4 text-primary" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-primary">
+            <div className="text-2xl font-black text-primary">
               {dashboard.pendingInterviewRequests}
             </div>
             <p className="text-xs text-muted-foreground">
@@ -164,7 +169,7 @@ export default async function DashboardPage() {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
         <Card className="col-span-1 lg:col-span-4 border-border shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Últimas Solicitudes de Entrevista</CardTitle>
+            <CardTitle className="uppercase tracking-wide">Últimas Solicitudes de Entrevista</CardTitle>
             <Link className="text-sm font-medium text-primary hover:underline" href="/admin/entrevistas">
               Abrir CRM
             </Link>
@@ -184,7 +189,7 @@ export default async function DashboardPage() {
                       </p>
                     </div>
                     <div
-                      className={`text-xs px-2 py-1 rounded font-medium ${
+                      className={`text-xs px-2 py-1 rounded-full font-medium ${
                         STATUS_META[request.status]?.badgeClass ??
                         "bg-muted text-muted-foreground"
                       }`}
@@ -202,7 +207,7 @@ export default async function DashboardPage() {
 
         <Card className="col-span-1 lg:col-span-3 border-border shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Estado de entrevistas</CardTitle>
+            <CardTitle className="text-sm font-medium uppercase tracking-wide">Estado de entrevistas</CardTitle>
             <ClipboardList className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -210,7 +215,7 @@ export default async function DashboardPage() {
               {STATUS_ORDER.map((status) => (
                 <div key={status} className="flex items-center justify-between">
                   <span
-                    className={`w-fit rounded px-2 py-1 text-xs font-medium ${STATUS_META[status].badgeClass}`}
+                    className={`w-fit rounded-full px-2 py-1 text-xs font-medium ${STATUS_META[status].badgeClass}`}
                   >
                     {STATUS_META[status].label}
                   </span>
@@ -235,7 +240,7 @@ export default async function DashboardPage() {
 
       <Card className="border-border shadow-sm">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Accesos rápidos</CardTitle>
+          <CardTitle className="text-sm font-medium uppercase tracking-wide">Accesos rápidos</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -243,9 +248,9 @@ export default async function DashboardPage() {
               <Link
                 key={href}
                 href={href}
-                className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-medium transition-colors hover:bg-muted"
+                className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium transition-colors hover:bg-muted"
               >
-                <Icon className="h-4 w-4 text-muted-foreground" />
+                <Icon className="h-4 w-4 text-secondary" />
                 {label}
               </Link>
             ))}

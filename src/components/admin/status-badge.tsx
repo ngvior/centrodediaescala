@@ -8,8 +8,8 @@ export function StatusBadge({ active }: { active: boolean }) {
 		<span
 			className={
 				active
-					? "rounded bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800"
-					: "rounded bg-muted px-2 py-1 text-xs font-medium text-muted-foreground"
+					? "rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800"
+					: "rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground"
 			}
 		>
 			{active ? "Activo" : "Inactivo"}

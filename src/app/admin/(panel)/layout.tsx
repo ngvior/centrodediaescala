@@ -1,4 +1,5 @@
 import { ReactNode } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import {
 	LayoutDashboard,
@@ -15,17 +16,31 @@ import { AdminNavLinkStatus } from "@/components/admin/admin-nav-link-status";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
 	return (
-		<div className="flex min-h-screen bg-muted/30 font-sans">
+		<div className="flex min-h-screen bg-admin-canvas font-sans [--muted-foreground:#626973] [--radius:10px]">
 			{/* Sidebar */}
 			<aside className="w-64 bg-[#222222] text-white hidden md:flex flex-col">
-				<div className="p-6 border-b border-white/10">
-					<h2 className="text-2xl font-bold text-primary">ESCALA</h2>
-					<p className="text-white/60 text-sm">Backoffice</p>
+				<div className="relative p-6">
+					<div className="flex items-center justify-center rounded-[10px] bg-white px-3 py-2.5">
+						<Image
+							src="/logo.png"
+							alt="Centro de Día Escala"
+							width={250}
+							height={100}
+							className="h-auto w-full max-w-[165px]"
+						/>
+					</div>
+					<p className="mt-3 text-[11px] font-bold uppercase tracking-[0.22em] text-white/55">
+						Backoffice
+					</p>
+					<div
+						aria-hidden
+						className="absolute inset-x-0 bottom-0 h-0.5 bg-escala-spectrum"
+					/>
 				</div>
-				<nav className="flex-1 p-4 space-y-2">
+				<nav className="flex-1 p-3 space-y-1">
 					<Link
 						href="/admin/dashboard"
-						className="relative flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/5 transition-colors"
+						className="relative isolate flex items-center gap-3 px-4 py-3 rounded-lg text-white/80 hover:bg-white/5 hover:text-white transition-colors"
 					>
 						<LayoutDashboard className="h-5 w-5 text-secondary" />
 						Dashboard
@@ -33,7 +48,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 					</Link>
 					<Link
 						href="/admin/profesionales"
-						className="relative flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/5 transition-colors"
+						className="relative isolate flex items-center gap-3 px-4 py-3 rounded-lg text-white/80 hover:bg-white/5 hover:text-white transition-colors"
 					>
 						<Users className="h-5 w-5 text-secondary" />
 						Profesionales
@@ -41,7 +56,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 					</Link>
 					<Link
 						href="/admin/actividades"
-						className="relative flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/5 transition-colors"
+						className="relative isolate flex items-center gap-3 px-4 py-3 rounded-lg text-white/80 hover:bg-white/5 hover:text-white transition-colors"
 					>
 						<Calendar className="h-5 w-5 text-secondary" />
 						Actividades
@@ -49,7 +64,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 					</Link>
 					<Link
 						href="/admin/galeria"
-						className="relative flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/5 transition-colors"
+						className="relative isolate flex items-center gap-3 px-4 py-3 rounded-lg text-white/80 hover:bg-white/5 hover:text-white transition-colors"
 					>
 						<ImageIcon className="h-5 w-5 text-secondary" />
 						Galería
@@ -57,7 +72,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 					</Link>
 					<Link
 						href="/admin/objetivos"
-						className="relative flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/5 transition-colors"
+						className="relative isolate flex items-center gap-3 px-4 py-3 rounded-lg text-white/80 hover:bg-white/5 hover:text-white transition-colors"
 					>
 						<CheckSquare className="h-5 w-5 text-secondary" />
 						Objetivos
@@ -65,7 +80,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 					</Link>
 					<Link
 						href="/admin/entrevistas"
-						className="relative flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/5 transition-colors"
+						className="relative isolate flex items-center gap-3 px-4 py-3 rounded-lg text-white/80 hover:bg-white/5 hover:text-white transition-colors"
 					>
 						<MessageSquare className="h-5 w-5 text-secondary" />
 						Entrevistas
@@ -73,7 +88,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 					</Link>
 					<Link
 						href="/admin/configuracion"
-						className="relative flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/5 transition-colors"
+						className="relative isolate flex items-center gap-3 px-4 py-3 rounded-lg text-white/80 hover:bg-white/5 hover:text-white transition-colors"
 					>
 						<Settings className="h-5 w-5 text-secondary" />
 						Configuración
@@ -97,7 +112,15 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 			<main className="flex-1 flex flex-col min-h-screen">
 				{/* Mobile Header */}
 				<header className="md:hidden bg-[#222222] text-white p-4 flex justify-between items-center">
-					<h2 className="text-xl font-bold text-primary">ESCALA Admin</h2>
+					<div className="rounded-lg bg-white px-2.5 py-1.5">
+						<Image
+							src="/logo.png"
+							alt="Centro de Día Escala"
+							width={250}
+							height={100}
+							className="h-7 w-auto"
+						/>
+					</div>
 					<form action={logoutAdmin}>
 						<button type="submit">
 							<LogOut className="h-6 w-6 text-red-400" />
