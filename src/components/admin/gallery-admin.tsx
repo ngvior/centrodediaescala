@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode, useState } from "react";
-import { Edit2, Eye, Plus, Trash2 } from "lucide-react";
+import { Edit2, Eye, ImageIcon, Plus, Trash2 } from "lucide-react";
 
 import {
 	createGalleryItem,
@@ -78,10 +78,6 @@ function GalleryRow({
 	const detailFields: DetailField[] = [
 		{ label: "Título", value: item.title },
 		{ label: "Categoría", value: item.category },
-		{
-			label: "Imagen",
-			value: <ImageLightbox src={item.image_url} alt="" title={item.title} />,
-		},
 		{ label: "Estado", value: <StatusBadge active={item.is_active} /> },
 	];
 
@@ -90,7 +86,12 @@ function GalleryRow({
 			<TableCell className="w-10">{handle}</TableCell>
 			<TableCell>
 				<div className="flex items-center gap-3">
-					<ImageLightbox src={item.image_url} alt="" title={item.title} />
+					<ImageLightbox
+						src={item.image_url}
+						alt=""
+						title={item.title}
+						className="h-12 w-16 rounded-[10px] object-cover ring-1 ring-black/10 transition-shadow hover:ring-2 hover:ring-primary/50"
+					/>
 					<span className="font-medium">{item.title}</span>
 				</div>
 			</TableCell>
@@ -99,8 +100,8 @@ function GalleryRow({
 				<span
 					className={
 						item.is_active
-							? "rounded bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800"
-							: "rounded bg-muted px-2 py-1 text-xs font-medium text-muted-foreground"
+							? "rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800"
+							: "rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground"
 					}
 				>
 					{item.is_active ? "Activo" : "Inactivo"}
@@ -122,6 +123,14 @@ function GalleryRow({
 						onOpenChange={setDetailOpen}
 						title={item.title}
 						fields={detailFields}
+						image={
+							<ImageLightbox
+								src={item.image_url}
+								alt=""
+								title={item.title}
+								className="h-44 w-full max-w-[176px] rounded-xl object-cover ring-1 ring-black/10 transition-shadow hover:ring-2 hover:ring-primary/50"
+							/>
+						}
 						onEdit={() => {
 							setDetailOpen(false);
 							setOpen(true);
@@ -156,6 +165,7 @@ function GalleryRow({
 										type="checkbox"
 										name="is_active"
 										defaultChecked={item.is_active}
+										className="size-4 accent-primary"
 									/>
 									Visible en la web pública
 								</label>
@@ -266,6 +276,10 @@ export function GalleryAdmin({ items }: { items: AdminGalleryItem[] }) {
 											colSpan={COLUMN_COUNT + 1}
 											className="py-8 text-center text-muted-foreground"
 										>
+											<ImageIcon
+												className="mx-auto mb-2 h-6 w-6 text-[#c6ccd4]"
+												aria-hidden
+											/>
 											No hay imágenes cargadas.
 										</TableCell>
 									</TableRow>

@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode, useState } from "react";
-import { Edit2, Eye, Plus, Trash2 } from "lucide-react";
+import { Calendar, Edit2, Eye, Plus, Trash2 } from "lucide-react";
 
 import {
 	createActivity,
@@ -119,8 +119,8 @@ function ActivityRow({
 				<span
 					className={
 						item.is_active
-							? "rounded bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800"
-							: "rounded bg-muted px-2 py-1 text-xs font-medium text-muted-foreground"
+							? "rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800"
+							: "rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground"
 					}
 				>
 					{item.is_active ? "Activo" : "Inactivo"}
@@ -176,6 +176,7 @@ function ActivityRow({
 										type="checkbox"
 										name="is_active"
 										defaultChecked={item.is_active}
+										className="size-4 accent-primary"
 									/>
 									Activa en la web pública
 								</label>
@@ -287,6 +288,10 @@ export function ActivitiesAdmin({ items }: { items: AdminActivity[] }) {
 											colSpan={COLUMN_COUNT + 1}
 											className="py-8 text-center text-muted-foreground"
 										>
+											<Calendar
+												className="mx-auto mb-2 h-6 w-6 text-[#c6ccd4]"
+												aria-hidden
+											/>
 											No hay actividades cargadas.
 										</TableCell>
 									</TableRow>

@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode, useState } from "react";
-import { Edit2, Eye, Plus, Trash2 } from "lucide-react";
+import { CheckSquare, Edit2, Eye, Plus, Trash2 } from "lucide-react";
 
 import {
 	createHomeObjective,
@@ -104,8 +104,8 @@ function ObjectiveRow({
 				<span
 					className={
 						item.is_active
-							? "rounded bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800"
-							: "rounded bg-muted px-2 py-1 text-xs font-medium text-muted-foreground"
+							? "rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800"
+							: "rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground"
 					}
 				>
 					{item.is_active ? "Activo" : "Inactivo"}
@@ -161,6 +161,7 @@ function ObjectiveRow({
 										type="checkbox"
 										name="is_active"
 										defaultChecked={item.is_active}
+										className="size-4 accent-primary"
 									/>
 									Visible en la web pública
 								</label>
@@ -270,6 +271,10 @@ export function ObjectivesAdmin({ items }: { items: AdminHomeObjective[] }) {
 											colSpan={COLUMN_COUNT + 1}
 											className="py-8 text-center text-muted-foreground"
 										>
+											<CheckSquare
+												className="mx-auto mb-2 h-6 w-6 text-[#c6ccd4]"
+												aria-hidden
+											/>
 											No hay objetivos cargados.
 										</TableCell>
 									</TableRow>

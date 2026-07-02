@@ -1,8 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { ImageIcon } from "lucide-react";
 
+import { ImageLightbox } from "@/components/admin/image-lightbox";
 import { Input } from "@/components/ui/input";
+
+/**
+ * Turns the primitive file input's selector button into a small bordered CTA.
+ * Overrides the Input primitive's own `file:*` defaults via tailwind-merge.
+ */
+const FILE_INPUT_CLASSNAME =
+	"file:mr-3 file:h-7 file:rounded-[9px] file:border file:border-border file:bg-white file:px-3 file:font-bold";
 
 /**
  * Accepted formats + size limit mirror the server-side validation in
@@ -67,22 +76,49 @@ export function ImageUploadField({
 		<div className="space-y-2">
 			<label className="text-sm font-medium">{label}</label>
 			<input type="hidden" name="existing_image_url" value={existingUrl ?? ""} />
-			<Input
-				type="file"
-				name={name}
-				accept={ACCEPTED_MIME_TYPES}
-				required={required && !existingUrl}
-				onChange={handleChange}
-			/>
-			{shownSrc ? (
-				// eslint-disable-next-line @next/next/no-img-element -- blob/object URLs and arbitrary Supabase URLs can't use next/image without remote config; this is an admin-only preview thumbnail.
-				<img
-					src={shownSrc}
-					alt="Vista previa de la imagen"
-					className="h-24 w-24 rounded-md border object-cover"
-				/>
-			) : null}
-			<p className="text-xs text-muted-foreground">{helpText}</p>
+			<div className="rounded-xl border-[1.5px] border-dashed border-[#d5dae1] bg-[#fbfcfd] p-3.5">
+				{/*
+				 * The file <Input> stays at a fixed position in the tree (the second
+				 * child of the layout wrapper) so selecting a file never remounts it
+				 * and loses the chosen FileList. Only the leading preview/placeholder
+				 * and the wrappers' classes switch between the two layouts.
+				 */}
+				<div
+					className={
+						shownSrc
+							? "flex gap-4"
+							: "flex flex-col items-center gap-2 py-5 text-center"
+					}
+				>
+					{shownSrc ? (
+						<ImageLightbox
+							src={shownSrc}
+							alt="Vista previa de la imagen"
+							title={label}
+							className="h-24 w-24 rounded-[10px] object-cover ring-1 ring-black/10 transition-shadow hover:ring-2 hover:ring-primary/50"
+						/>
+					) : (
+						<ImageIcon className="h-6 w-6 text-[#b9c0c9]" aria-hidden="true" />
+					)}
+					<div
+						className={
+							shownSrc
+								? "flex flex-1 flex-col justify-center gap-2"
+								: "flex w-full flex-col items-center gap-2"
+						}
+					>
+						<Input
+							type="file"
+							name={name}
+							accept={ACCEPTED_MIME_TYPES}
+							required={required && !existingUrl}
+							onChange={handleChange}
+							className={FILE_INPUT_CLASSNAME}
+						/>
+						<p className="text-xs text-muted-foreground">{helpText}</p>
+					</div>
+				</div>
+			</div>
 		</div>
 	);
 }
