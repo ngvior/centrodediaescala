@@ -48,6 +48,7 @@
   --color-escala-purple: #a35db4;
   --color-escala-green: #00bc6f;
   --color-escala-gray: rgb(136, 136, 136);
+  --color-admin-canvas: #f5f6f8;
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -91,6 +92,19 @@
       opacity: 1;
     }
   }
+}
+
+@utility bg-escala-spectrum {
+  background-image: linear-gradient(
+    90deg,
+    var(--color-escala-lime) 0%,
+    var(--color-escala-green) 18%,
+    var(--color-escala-cyan) 36%,
+    var(--color-escala-blue) 54%,
+    var(--color-escala-purple) 72%,
+    var(--color-escala-red) 88%,
+    var(--color-escala-orange) 100%
+  );
 }
 
 :root {

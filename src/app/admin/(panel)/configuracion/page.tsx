@@ -9,7 +9,7 @@ export default async function ConfiguracionPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">Configuración</h1>
+        <h1 className="text-3xl font-bold tracking-wide text-foreground">Configuración</h1>
         <p className="text-muted-foreground">
           Gestioná los textos públicos obligatorios sin crear ni eliminar claves requeridas.
         </p>
@@ -26,7 +26,7 @@ export default async function ConfiguracionPage() {
           return (
             <Card key={group} className="border-border bg-white shadow-sm">
               <CardHeader>
-                <CardTitle>{title}</CardTitle>
+                <CardTitle className="uppercase tracking-wide">{title}</CardTitle>
               </CardHeader>
               <CardContent className="grid gap-4 lg:grid-cols-2">
                 {groupSettings.map((setting) => (

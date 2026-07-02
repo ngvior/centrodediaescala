@@ -60,7 +60,7 @@ function InterviewRequestCard({ request }: { request: AdminInterviewRequest }) {
     <Card className="border-border bg-white shadow-sm">
       <CardHeader className="gap-3 md:flex-row md:items-start md:justify-between">
         <div className="space-y-1">
-          <CardTitle className="text-xl">{request.contact_name}</CardTitle>
+          <CardTitle className="text-xl uppercase tracking-wide">{request.contact_name}</CardTitle>
           <p className="text-sm text-muted-foreground">
             {request.patient_name ? `Paciente: ${request.patient_name}` : 'Sin paciente indicado'}
           </p>
@@ -68,7 +68,7 @@ function InterviewRequestCard({ request }: { request: AdminInterviewRequest }) {
             Recibida el {formatRequestDate(request.created_at)}
           </p>
         </div>
-        <span className={`w-fit rounded px-2 py-1 text-xs font-medium ${STATUS_BADGE_CLASSES[request.status]}`}>
+        <span className={`w-fit rounded-full px-2 py-1 text-xs font-medium ${STATUS_BADGE_CLASSES[request.status]}`}>
           {getStatusLabel(request.status)}
         </span>
       </CardHeader>
@@ -150,7 +150,7 @@ export default async function EntrevistasPage({ searchParams }: InterviewsPagePr
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Entrevistas</h1>
+          <h1 className="text-3xl font-bold tracking-wide text-foreground">Entrevistas</h1>
           <p className="text-muted-foreground">
             Revisá solicitudes, actualizá el estado y dejá notas internas sin modificar los datos originales.
           </p>
