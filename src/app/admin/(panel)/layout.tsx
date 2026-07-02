@@ -11,6 +11,7 @@ import {
 	CheckSquare,
 } from "lucide-react";
 import { logoutAdmin } from "@/actions/auth";
+import { AdminNavLinkStatus } from "@/components/admin/admin-nav-link-status";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
 	return (
@@ -24,52 +25,59 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 				<nav className="flex-1 p-4 space-y-2">
 					<Link
 						href="/admin/dashboard"
-						className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/5 transition-colors"
+						className="relative flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/5 transition-colors"
 					>
 						<LayoutDashboard className="h-5 w-5 text-secondary" />
 						Dashboard
+						<AdminNavLinkStatus href="/admin/dashboard" />
 					</Link>
 					<Link
 						href="/admin/profesionales"
-						className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/5 transition-colors"
+						className="relative flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/5 transition-colors"
 					>
 						<Users className="h-5 w-5 text-secondary" />
 						Profesionales
+						<AdminNavLinkStatus href="/admin/profesionales" />
 					</Link>
 					<Link
 						href="/admin/actividades"
-						className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/5 transition-colors"
+						className="relative flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/5 transition-colors"
 					>
 						<Calendar className="h-5 w-5 text-secondary" />
 						Actividades
+						<AdminNavLinkStatus href="/admin/actividades" />
 					</Link>
 					<Link
 						href="/admin/galeria"
-						className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/5 transition-colors"
+						className="relative flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/5 transition-colors"
 					>
 						<ImageIcon className="h-5 w-5 text-secondary" />
 						Galería
+						<AdminNavLinkStatus href="/admin/galeria" />
 					</Link>
 					<Link
 						href="/admin/objetivos"
-						className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/5 transition-colors"
+						className="relative flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/5 transition-colors"
 					>
 						<CheckSquare className="h-5 w-5 text-secondary" />
 						Objetivos
+						<AdminNavLinkStatus href="/admin/objetivos" />
 					</Link>
 					<Link
 						href="/admin/entrevistas"
-						className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/5 transition-colors"
+						className="relative flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/5 transition-colors"
 					>
 						<MessageSquare className="h-5 w-5 text-secondary" />
 						Entrevistas
+						<AdminNavLinkStatus href="/admin/entrevistas" />
 					</Link>
 					<Link
 						href="/admin/configuracion"
-						className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/5 transition-colors"
+						className="relative flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/5 transition-colors"
 					>
 						<Settings className="h-5 w-5 text-secondary" />
 						Configuración
+						<AdminNavLinkStatus href="/admin/configuracion" />
 					</Link>
 				</nav>
 				<div className="p-4 border-t border-white/10">

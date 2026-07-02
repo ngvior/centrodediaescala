@@ -115,6 +115,27 @@ describe('interview actions', () => {
     expect(actionMocks.revalidatePath).toHaveBeenCalledWith('/admin/dashboard')
   })
 
+  it('fails open to the default rate-limit max when INTERVIEW_RATE_LIMIT_MAX is malformed', async () => {
+    process.env.INTERVIEW_RATE_LIMIT_MAX = '3x'
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { client, rpc } = createInterviewClientMock()
+    actionMocks.createAdminClient.mockReturnValue(client)
+
+    await expect(
+      submitInterviewRequest(initialState, createInterviewFormData())
+    ).resolves.toMatchObject({ status: 'success' })
+
+    expect(rpc).toHaveBeenCalledWith(
+      'increment_interview_rate_limit',
+      expect.objectContaining({ p_max_requests: 3 })
+    )
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('INTERVIEW_RATE_LIMIT_MAX')
+    )
+
+    warnSpy.mockRestore()
+  })
+
   it('returns validation feedback without creating a Supabase client for invalid payloads', async () => {
     const result = await submitInterviewRequest(
       initialState,
@@ -187,5 +208,74 @@ describe('interview actions', () => {
 
     expect(result).toMatchObject({ status: 'error' })
     expect(actionMocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('returns the safe error message and logs without PII when an unexpected error occurs', async () => {
+    actionMocks.createAdminClient.mockImplementation(() => {
+      throw new Error('db connection lost')
+    })
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const result = await submitInterviewRequest(
+      initialState,
+      createInterviewFormData()
+    )
+
+    expect(result).toMatchObject({
+      status: 'error',
+      message: 'No pudimos enviar la solicitud en este momento. Probá nuevamente más tarde.',
+    })
+    expect(errorSpy).toHaveBeenCalledTimes(1)
+    const loggedContext = errorSpy.mock.calls[0][1] as Record<string, unknown>
+    expect(typeof loggedContext.error).toBe('string')
+    const loggedStr = JSON.stringify(loggedContext)
+    expect(loggedStr).not.toContain('Ada Lovelace')
+    expect(loggedStr).not.toContain('11 5555-5555')
+    expect(loggedStr).not.toContain('ada@example.com')
+    expect(loggedStr).not.toContain('Quiero coordinar una entrevista.')
+
+    errorSpy.mockRestore()
+  })
+
+  it('fails open to the default rate-limit window when INTERVIEW_RATE_LIMIT_WINDOW_MINUTES is malformed', async () => {
+    process.env.INTERVIEW_RATE_LIMIT_WINDOW_MINUTES = '60x'
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { client, rpc } = createInterviewClientMock()
+    actionMocks.createAdminClient.mockReturnValue(client)
+
+    await expect(
+      submitInterviewRequest(initialState, createInterviewFormData())
+    ).resolves.toMatchObject({ status: 'success' })
+
+    expect(rpc).toHaveBeenCalledWith(
+      'increment_interview_rate_limit',
+      expect.objectContaining({ p_window_start: '2026-05-16T12:00:00.000Z' })
+    )
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('INTERVIEW_RATE_LIMIT_WINDOW_MINUTES')
+    )
+
+    warnSpy.mockRestore()
+  })
+
+  it('fails open to the default rate-limit max when INTERVIEW_RATE_LIMIT_MAX is zero or negative', async () => {
+    process.env.INTERVIEW_RATE_LIMIT_MAX = '0'
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { client, rpc } = createInterviewClientMock()
+    actionMocks.createAdminClient.mockReturnValue(client)
+
+    await expect(
+      submitInterviewRequest(initialState, createInterviewFormData())
+    ).resolves.toMatchObject({ status: 'success' })
+
+    expect(rpc).toHaveBeenCalledWith(
+      'increment_interview_rate_limit',
+      expect.objectContaining({ p_max_requests: 3 })
+    )
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('INTERVIEW_RATE_LIMIT_MAX')
+    )
+
+    warnSpy.mockRestore()
   })
 })

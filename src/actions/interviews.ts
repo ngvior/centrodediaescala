@@ -77,7 +77,10 @@ function getPositiveIntegerEnv(name: string, fallback: number) {
   const parsed = Number(value)
 
   if (!Number.isInteger(parsed) || parsed < 1) {
-    throw new Error(`${name} must be a positive integer`)
+    console.warn(
+      `Invalid ${name}; falling back to ${fallback}.`
+    )
+    return fallback
   }
 
   return parsed
@@ -220,7 +223,10 @@ export async function submitInterviewRequest(
     revalidatePath('/admin/dashboard')
 
     return { status: 'success', message: SUCCESS_MESSAGE }
-  } catch {
+  } catch (error) {
+    console.error('submitInterviewRequest failed unexpectedly', {
+      error: error instanceof Error ? error.message : String(error),
+    })
     return errorState()
   }
 }

@@ -99,7 +99,7 @@ export type AdminSiteSetting = SiteSettingDefinition & {
 	displayValue: string;
 };
 
-const PUBLIC_ANCHORS = new Set([
+export const PUBLIC_ANCHORS = new Set([
 	"#inicio",
 	"#institucion",
 	"#actividades",
@@ -114,6 +114,34 @@ const PUBLIC_ANCHORS = new Set([
 	"#contact",
 	"camina.html",
 ]);
+
+/**
+ * Friendly section options offered by the header navigation editor.
+ *
+ * Each `href` MUST be an anchor that ACTUALLY exists in the rendered public page
+ * (src/app/(public)/page.tsx section ids + GallerySection), because header.tsx
+ * scrolls via `getElementById(href.replace('#',''))`. Picking a label here always
+ * resolves to a real section.
+ *
+ * These deliberately use the REAL ids (#top_content, #service, #work_outer,
+ * #team, #contact) — NOT the #inicio/#institucion/#actividades/#equipo/#contacto
+ * names, which the page never renders and which would resolve to `null` (a dead
+ * link). The non-canonical names remain in {@link PUBLIC_ANCHORS} only so already
+ * stored legacy values keep validating; the editor preserves such a value as a
+ * per-row "(enlace heredado: …)" option instead of offering it as a choice.
+ */
+export const NAVIGATION_SECTIONS: ReadonlyArray<{
+	href: string;
+	label: string;
+}> = [
+	{ href: "#top_content", label: "Inicio" },
+	{ href: "#service", label: "Institución" },
+	{ href: "#work_outer", label: "Actividades" },
+	{ href: "#galeria", label: "Galería" },
+	{ href: "#team", label: "Profesionales / Equipo" },
+	{ href: "#contact", label: "Contacto" },
+	{ href: "camina.html", label: "Escala / Camina" },
+];
 
 export const SITE_SETTING_DEFINITIONS = [
 	{

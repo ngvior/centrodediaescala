@@ -7,7 +7,7 @@ import { reorderRecords, type ReorderableTable } from "@/actions/admin";
 
 /**
  * Wires drag-and-drop reordering for an admin list to `reorderRecords`. The
- * reorder is optimistic (SortableList already moved the rows locally); on
+ * reorder is optimistic (SortableTable already moved the rows locally); on
  * failure we `router.refresh()` to pull the server's authoritative order back.
  */
 export function useReorder(table: ReorderableTable) {

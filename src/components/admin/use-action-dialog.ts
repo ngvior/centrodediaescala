@@ -21,7 +21,7 @@ type EntityAction = (
  * Close-on-success is reconciled during render (not in an effect): each
  * dispatch from `useActionState` yields a new state object, so comparing it to
  * the last-seen state lets us react to the completed submission exactly once.
- * This mirrors the "adjusting state during render" pattern used by SortableList
+ * This mirrors the "adjusting state during render" pattern used by SortableTable
  * and avoids the cascading-render effect lint rule.
  */
 export function useActionDialog(action: EntityAction) {
