@@ -45,7 +45,7 @@ export default function LoginPage() {
 					alt="Centro de Día Escala"
 					width={250}
 					height={100}
-					preload
+					priority
 					className="mx-auto h-[76px] w-auto"
 				/>
 				<p className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground mt-2">
