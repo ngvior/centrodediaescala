@@ -37,6 +37,7 @@ import {
 	createProfessional,
 	deleteActivity,
 	deleteGalleryItem,
+	deleteInterviewRequest,
 	deleteProfessional,
 	getAdminActivities,
 	getAdminGalleryItems,
@@ -822,15 +823,18 @@ describe("admin actions", () => {
 		]);
 		actionMocks.createAdminClient.mockReturnValue(client);
 
-		await updateInterviewRequestCrm(
-			createInterviewCrmFormData({
-				contact_name: "No debe cambiar",
-				patient_name: "Tampoco debe cambiar",
-				phone: "1111",
-				email: "otro@example.com",
-				message: "Mensaje original alterado",
-			}),
-		);
+		await expect(
+			updateInterviewRequestCrm(
+				IDLE_STATE,
+				createInterviewCrmFormData({
+					contact_name: "No debe cambiar",
+					patient_name: "Tampoco debe cambiar",
+					phone: "1111",
+					email: "otro@example.com",
+					message: "Mensaje original alterado",
+				}),
+			),
+		).resolves.toEqual({ status: "success" });
 
 		expect(actionMocks.requireAdmin).toHaveBeenCalledTimes(1);
 		expect(actionMocks.createAdminClient).toHaveBeenCalledTimes(1);
@@ -852,18 +856,26 @@ describe("admin actions", () => {
 		expect(actionMocks.revalidatePath).not.toHaveBeenCalledWith("/");
 	});
 
-	it("rejects invalid interview CRM payloads before creating the admin client", async () => {
+	it("returns an error result for invalid interview CRM payloads before creating the admin client", async () => {
 		await expect(
 			updateInterviewRequestCrm(
+				IDLE_STATE,
 				createInterviewCrmFormData({ status: "ARCHIVED" }),
 			),
-		).rejects.toThrow("Estado de entrevista inválido: ARCHIVED");
+		).resolves.toEqual({
+			status: "error",
+			message: "Estado de entrevista inválido: ARCHIVED",
+		});
 
 		await expect(
 			updateInterviewRequestCrm(
+				IDLE_STATE,
 				createInterviewCrmFormData({ notes: "x".repeat(2001) }),
 			),
-		).rejects.toThrow("Las notas internas no pueden superar 2000 caracteres");
+		).resolves.toEqual({
+			status: "error",
+			message: "Las notas internas no pueden superar 2000 caracteres",
+		});
 
 		expect(actionMocks.requireAdmin).toHaveBeenCalledTimes(2);
 		expect(actionMocks.createAdminClient).not.toHaveBeenCalled();
@@ -874,7 +886,52 @@ describe("admin actions", () => {
 		actionMocks.requireAdmin.mockRejectedValueOnce(new Error("No autorizado"));
 
 		await expect(
-			updateInterviewRequestCrm(createInterviewCrmFormData()),
+			updateInterviewRequestCrm(IDLE_STATE, createInterviewCrmFormData()),
+		).resolves.toEqual({ status: "error", message: "No autorizado" });
+
+		expect(actionMocks.createAdminClient).not.toHaveBeenCalled();
+		expect(actionMocks.revalidatePath).not.toHaveBeenCalled();
+	});
+
+	it("deletes an interview request and revalidates CRM admin paths", async () => {
+		const { client, queries } = createSupabaseClientMock([
+			{
+				table: "interview_requests",
+				response: { data: null, error: null },
+			},
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+
+		await deleteInterviewRequest(createFormData({ id: "interview-id" }));
+
+		expect(actionMocks.requireAdmin).toHaveBeenCalledTimes(1);
+		expect(actionMocks.requireAdmin.mock.invocationCallOrder[0]).toBeLessThan(
+			actionMocks.createAdminClient.mock.invocationCallOrder[0],
+		);
+		expect(queries[0].delete).toHaveBeenCalledTimes(1);
+		expect(queries[0].eq).toHaveBeenCalledWith("id", "interview-id");
+		expect(actionMocks.revalidatePath).toHaveBeenCalledWith("/admin/dashboard");
+		expect(actionMocks.revalidatePath).toHaveBeenCalledWith(
+			"/admin/entrevistas",
+		);
+		expect(actionMocks.revalidatePath).not.toHaveBeenCalledWith("/");
+	});
+
+	it("rejects interview deletions without an id before creating the admin client", async () => {
+		await expect(deleteInterviewRequest(createFormData({}))).rejects.toThrow(
+			"El campo id es obligatorio",
+		);
+
+		expect(actionMocks.requireAdmin).toHaveBeenCalledTimes(1);
+		expect(actionMocks.createAdminClient).not.toHaveBeenCalled();
+		expect(actionMocks.revalidatePath).not.toHaveBeenCalled();
+	});
+
+	it("does not create a Supabase admin client when interview deletion auth fails", async () => {
+		actionMocks.requireAdmin.mockRejectedValueOnce(new Error("No autorizado"));
+
+		await expect(
+			deleteInterviewRequest(createFormData({ id: "interview-id" })),
 		).rejects.toThrow("No autorizado");
 
 		expect(actionMocks.createAdminClient).not.toHaveBeenCalled();
