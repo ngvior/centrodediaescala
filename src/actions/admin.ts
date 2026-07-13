@@ -685,28 +685,50 @@ export async function updateSiteSetting(
 	}
 }
 
-export async function updateInterviewRequestCrm(formData: FormData) {
+export async function updateInterviewRequestCrm(
+	_prevState: ActionResult,
+	formData: FormData,
+): Promise<ActionResult> {
+	try {
+		await requireAdmin();
+
+		const id = getRequiredString(formData, "id");
+		const status = getRequiredString(formData, "status");
+
+		if (!isInterviewRequestStatus(status)) {
+			throw new Error(`Estado de entrevista inválido: ${status}`);
+		}
+
+		const notes = getOptionalString(formData, "notes");
+
+		if (notes && notes.length > MAX_INTERVIEW_NOTES_LENGTH) {
+			throw new Error(
+				`Las notas internas no pueden superar ${MAX_INTERVIEW_NOTES_LENGTH} caracteres`,
+			);
+		}
+
+		const supabase = createAdminClient();
+		const { error } = await supabase
+			.from("interview_requests")
+			.update({ status, notes })
+			.eq("id", id);
+
+		assertMutationSucceeded("interview_requests", error);
+		revalidateInterviewCrmPaths();
+		return { status: "success" };
+	} catch (error) {
+		return toActionError(error);
+	}
+}
+
+export async function deleteInterviewRequest(formData: FormData) {
 	await requireAdmin();
 
 	const id = getRequiredString(formData, "id");
-	const status = getRequiredString(formData, "status");
-
-	if (!isInterviewRequestStatus(status)) {
-		throw new Error(`Estado de entrevista inválido: ${status}`);
-	}
-
-	const notes = getOptionalString(formData, "notes");
-
-	if (notes && notes.length > MAX_INTERVIEW_NOTES_LENGTH) {
-		throw new Error(
-			`Las notas internas no pueden superar ${MAX_INTERVIEW_NOTES_LENGTH} caracteres`,
-		);
-	}
-
 	const supabase = createAdminClient();
 	const { error } = await supabase
 		.from("interview_requests")
-		.update({ status, notes })
+		.delete()
 		.eq("id", id);
 
 	assertMutationSucceeded("interview_requests", error);
