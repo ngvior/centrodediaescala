@@ -18,6 +18,7 @@ import Image from "next/image";
 
 import { getActivityIcon } from "@/lib/activity-icons";
 import { renderInline, renderMarkupBlocks } from "@/lib/markup";
+import { cn } from "@/lib/utils";
 
 const CONTACT_MAP_EMBED_URL =
 	"https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3282.074723619188!2d-58.49996178756245!3d-34.65281577282383!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x95bcc907d6712975%3A0x45f1a9314f8321b3!2sESCALA%20CENTRO%20DE%20D%C3%8DA!5e0!3m2!1sen!2sar!4v1780450210353!5m2!1sen!2sar";
@@ -138,6 +139,12 @@ export default async function Home() {
 	const complianceColumns = [
 		siteSettings.about_compliance_items.slice(0, complianceHalf),
 		siteSettings.about_compliance_items.slice(complianceHalf),
+	];
+	// getActivities() orders by order_index, so index parity is a stable
+	// distribution key for the staggered two-column layout.
+	const activityColumns = [
+		activities.filter((_, index) => index % 2 === 0),
+		activities.filter((_, index) => index % 2 === 1),
 	];
 	const contactItems = [
 		{
@@ -299,10 +306,20 @@ export default async function Home() {
 			>
 				<div className="container px-4 md:px-6 mx-auto">
 					<h2>{siteSettings.activities_section_title}</h2>
-					<div className="mx-auto mt-12 flex max-w-[920px] flex-wrap justify-center gap-x-12 gap-y-12">
-						{activities.map((act) => (
-							<div key={act.id} className="w-full md:w-[calc(50%-24px)]">
-								<ActivitySummary activity={act} />
+					<div className="mx-auto mt-12 grid max-w-[920px] grid-cols-1 items-start gap-x-12 gap-y-12 md:grid-cols-2">
+						{activityColumns.map((column, columnIndex) => (
+							<div
+								key={columnIndex}
+								className={cn(
+									"flex flex-col gap-12",
+									// Without the emptiness guard an empty second column still
+									// contributes its offset, leaving a gap under the heading.
+									columnIndex === 1 && column.length > 0 && "md:mt-14",
+								)}
+							>
+								{column.map((act) => (
+									<ActivitySummary key={act.id} activity={act} />
+								))}
 							</div>
 						))}
 					</div>
