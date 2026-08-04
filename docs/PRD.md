@@ -62,6 +62,6 @@ Definido e implementado conceptualmente en `supabase/schema.sql` (Ver documento 
 ## 7. Plan de Acción y Siguientes Pasos
 1. **Infraestructura:** El propietario del proyecto debe crear una instancia en Supabase y proveer las claves API (`URL` y `Anon Key`).
 2. **Setup BD:** Ejecutar script `schema.sql` en Supabase para montar estructura.
-3. **Integración:** Eliminar los mock-files (`src/lib/cms-mock.ts`) de Next.js y permitir que la capa `lib/api/index.ts` consuma datos reales.
+3. **Integración:** La capa `lib/api/index.ts` consume datos reales de Supabase como única fuente de contenido, sin mock-files intermedios de respaldo.
 4. **Finalizar Backoffice:** Construir las vistas faltantes para el administrador en el panel `/admin`.
 5. **Despliegue:** Subir repositorio a GitHub, deployar en Vercel y asociar el dominio `.org`.

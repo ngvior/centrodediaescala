@@ -69,7 +69,7 @@ Almacena todas las variables de texto, enlaces e imágenes estructurales de la w
 | group | key | value | type |
 |-------|-----|-------|------|
 | CONTACTO | `contact_phone` | `+54 11 4635-4207` | TEXT |
-| CONTACTO | `contact_address` | `José Enrique Rodó 5557, CABA` | TEXT |
+| CONTACTO | `contact_address` | `José Enrique Rodó 5559, CABA` | TEXT |
 | REDES | `social_facebook` | `https://facebook.com/...` | LINK |
 | REDES | `social_linkedin` | `` | LINK |
 | REDES | `social_twitter` | `` | LINK |
