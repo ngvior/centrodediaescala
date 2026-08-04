@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import Image from "next/image";
+import { TriangleAlert } from "lucide-react";
 import {
 	Card,
 	CardContent,
@@ -13,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { loginAdmin, type LoginState } from "@/actions/auth";
 
-const initialState: LoginState = { error: "" };
+const initialState: LoginState = { error: "", kind: null };
 
 export default function LoginPage() {
 	const [state, formAction] = useActionState(loginAdmin, initialState);
@@ -87,11 +88,26 @@ export default function LoginPage() {
 							<Input id="password" name="password" type="password" required />
 						</div>
 
-						{state.error && (
-							<div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md">
-								{state.error}
-							</div>
-						)}
+						{state.error &&
+							(state.kind === "unavailable" ? (
+								<div
+									role="alert"
+									className="flex items-start gap-2 border border-amber-200 bg-amber-50 text-amber-900 text-sm p-3 rounded-md"
+								>
+									<TriangleAlert
+										aria-hidden="true"
+										className="size-4 shrink-0 mt-0.5"
+									/>
+									<span>{state.error}</span>
+								</div>
+							) : (
+								<div
+									role="alert"
+									className="bg-destructive/10 text-destructive text-sm p-3 rounded-md"
+								>
+									{state.error}
+								</div>
+							))}
 
 						<SubmitButton
 							pendingLabel="Ingresando…"
