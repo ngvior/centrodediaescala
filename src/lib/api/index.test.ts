@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 
 import {
@@ -8,26 +8,33 @@ import {
 } from "@/test/supabase-test-helpers";
 import { REQUIRED_SITE_SETTING_KEYS } from "@/lib/site-settings";
 
+const SOURCE_ROOT = "src";
+
+// Matched against import syntax rather than the bare module name so this file's
+// own pattern literal is not reported as an offender.
+const MOCK_CONTENT_MODULE_IMPORT =
+	/\b(?:from|import|require)\s*\(?\s*["'][^"']*(?:cms-mock|mock-cms|content-mock|mock-content)(?:\.[jt]sx?)?["']/;
+
+function listSourceFiles() {
+	return readdirSync(path.join(process.cwd(), SOURCE_ROOT), {
+		recursive: true,
+		encoding: "utf8",
+	}).filter((entry) => entry.endsWith(".ts") || entry.endsWith(".tsx"));
+}
+
 const apiMocks = vi.hoisted(() => ({
 	createClient: vi.fn(),
-	cmsMockImport: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
 	createClient: apiMocks.createClient,
 }));
 
-vi.mock("@/lib/cms-mock", () => {
-	apiMocks.cmsMockImport();
-	return {};
-});
-
 import { getActivities, getProfessionals, getSiteSettings } from "./index";
 
 describe("public data API", () => {
 	beforeEach(() => {
 		apiMocks.createClient.mockReset();
-		apiMocks.cmsMockImport.mockReset();
 	});
 
 	it("reads site settings from Supabase and normalizes rows by setting key", async () => {
@@ -109,7 +116,7 @@ describe("public data API", () => {
 		expect(seedSql).toContain("'social_instagram'");
 		expect(seedSql).toContain("'social_linkedin'");
 		expect(seedSql).toContain("'social_twitter'");
-		expect(seedSql).toContain("'contact_email', 'info@centrodediaescala.org'");
+		expect(seedSql).toContain("'contact_email', 'escalaelcentrodedia@gmail.com'");
 		expect(seedSql).toContain("'contact_email_label', 'Email'");
 		expect(seedSql).toContain(
 			"'social_facebook', 'https://www.facebook.com/centrodediaescala'",
@@ -148,7 +155,20 @@ describe("public data API", () => {
 		);
 	});
 
-	it("does not import cms-mock as a runtime fallback", async () => {
+	it("keeps the source tree free of mock content module imports", () => {
+		const offenders = listSourceFiles().filter((relativePath) =>
+			MOCK_CONTENT_MODULE_IMPORT.test(
+				readFileSync(
+					path.join(process.cwd(), SOURCE_ROOT, relativePath),
+					"utf8",
+				),
+			),
+		);
+
+		expect(offenders).toEqual([]);
+	});
+
+	it("reads activities from Supabase instead of a bundled content fallback", async () => {
 		const { client, queries } = createSupabaseClientMock([
 			{
 				table: "activities",
@@ -176,6 +196,5 @@ describe("public data API", () => {
 		expect(queries[0].select).toHaveBeenCalledWith(
 			"id, title, description, category, icon, image_url, schedule_info",
 		);
-		expect(apiMocks.cmsMockImport).not.toHaveBeenCalled();
 	});
 });

@@ -167,7 +167,7 @@ function getDefaultSettingValue(
 	}
 
 	if (settingKey === "contact_email") {
-		return "info@centrodediaescala.org";
+		return "escalaelcentrodedia@gmail.com";
 	}
 
 	if (settingKey === "contact_email_label") {

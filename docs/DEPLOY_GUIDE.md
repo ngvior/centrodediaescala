@@ -4,7 +4,7 @@ Esta guía define el orden seguro para publicar la app con Supabase como fuente 
 
 ## Camino rápido de rollout
 
-**Orden operativo exacto:** preparar Supabase → configurar variables → desplegar código → aplicar schema → correr seed una sola vez → crear admin manual → deshabilitar signup público → verificar → recién ahí conectar dominio.
+**Orden operativo exacto:** preparar Supabase → configurar variables → desplegar código → aplicar schema → importar el export de datos reales → crear admin manual → deshabilitar signup público → verificar → recién ahí conectar dominio.
 
 | Orden | Acción | Stop point |
 |-------|--------|------------|
@@ -12,12 +12,12 @@ Esta guía define el orden seguro para publicar la app con Supabase como fuente 
 | 2 | Configurar variables en Vercel/local. | No publicar sin `SUPABASE_SERVICE_ROLE_KEY` y `RATE_LIMIT_SECRET`. |
 | 3 | Desplegar el código actualizado. | No navegar producción todavía: faltan tablas/datos/admin. |
 | 4 | Ejecutar `supabase/schema.sql` en Supabase. | Requiere clearance del maintainer. |
-| 5 | Ejecutar `supabase/seed.sql` **una sola vez**. | Requiere clearance del maintainer. |
+| 5 | Importar el export de datos de la base productiva (`pg_dump --data-only` o dump de Supabase). | Requiere clearance del maintainer. **Nunca** ejecutar `supabase/seed.sql` acá. |
 | 6 | Crear manualmente el usuario admin y deshabilitar signup público. | Requiere clearance del maintainer. |
 | 7 | Verificar Data API, RLS, Auth y rate limit. | Si falla algo, no conectar dominio. |
 | 8 | Conectar dominio y correo. | Solo después de verificación completa. |
 
-> **Fuera de scope para automatización:** aplicar schema, correr seed, crear usuarios Supabase Auth y verificar contra un proyecto real deben hacerse manualmente por un maintainer con acceso al dashboard.
+> **Fuera de scope para automatización:** aplicar schema, generar e importar el export de datos, crear usuarios Supabase Auth y verificar contra un proyecto real deben hacerse manualmente por un maintainer con acceso al dashboard.
 
 ## 1. Repositorio en GitHub
 
@@ -71,24 +71,32 @@ Configurar estas variables antes del deploy en Vercel (**Settings → Environmen
 4. Ejecutar el deploy.
 5. Al finalizar, Vercel entregará una URL temporal (por ejemplo, `escala-web.vercel.app`).
 
-**Stop point:** no usar la URL pública todavía si el schema, seed y admin no fueron preparados.
+**Stop point:** no usar la URL pública todavía si el schema, los datos y el admin no fueron preparados.
 
-## 5. Base de datos: schema y seed
+## 5. Base de datos: schema y datos
 
 Ejecutar estos pasos solo después de tener el código/env listos.
+
+La estructura se crea con `supabase/schema.sql`. El contenido **no** se crea con `supabase/seed.sql`: la base productiva es la única fuente de verdad del contenido, porque el cliente edita textos, profesionales, actividades y galería desde el panel admin. Poblar un ambiente nuevo requiere un **export de datos reales** de la base productiva.
 
 | Orden | Archivo | Cuándo ejecutarlo | Resultado esperado |
 |-------|---------|-------------------|--------------------|
 | 1 | `supabase/schema.sql` | Una vez por ambiente, después del deploy/env. | Crea tablas, índices, GRANTs, RLS policies y RPC de rate limit. |
-| 2 | `supabase/seed.sql` | Una sola vez después del schema. | Carga contenido inicial idempotente para sitio público y CMS. |
+| 2 | Export de datos (`pg_dump --data-only` o dump de Supabase) | Una sola vez después del schema, sobre un ambiente vacío. | Carga el contenido real y vigente del sitio público y del CMS. |
+
+> **Guardrail: nunca ejecutar `supabase/seed.sql` contra una base que ya tiene contenido real.** Dos motivos concretos: (1) el archivo abre con un `DELETE FROM public.gallery_items;` que borra todas las fotos cargadas desde el panel; (2) el resto de sus bloques usa `ON CONFLICT ... DO UPDATE`, así que sobrescribe silenciosamente las ediciones del cliente con los textos viejos del repositorio.
+>
+> `seed.sql` conserva un único uso legítimo: **bootstrapear un ambiente de desarrollo nuevo y vacío**, donde no hay contenido real que perder.
 
 ### Checklist SQL
 
 - [ ] Abrir **Supabase → SQL Editor**.
 - [ ] Pegar y ejecutar `supabase/schema.sql` completo.
 - [ ] Confirmar que no hubo errores.
-- [ ] Pegar y ejecutar `supabase/seed.sql` completo **una sola vez**.
+- [ ] Confirmar que las tablas públicas están vacías antes de importar datos.
+- [ ] Generar el export de datos de la base productiva (`pg_dump --data-only` o dump de Supabase) e importarlo **una sola vez**.
 - [ ] Confirmar que las tablas públicas tienen datos (`site_settings`, `professionals`, `activities`, `home_objectives`, `gallery_items`, `events`).
+- [ ] Confirmar que el contenido importado coincide con el sitio productivo (textos, galería y profesionales).
 - [ ] Confirmar que `interview_requests` e `interview_rate_limits` no tienen grants/policies públicas de escritura.
 
 ## 6. Admin Auth
@@ -158,7 +166,7 @@ Al cambiar DNS en el dominio, los correos del FTP/hosting anterior pueden dejar 
 | Momento | Acción segura |
 |---------|---------------|
 | Antes de conectar dominio | Revertir deploy en Vercel o redeployar commit anterior. |
-| Después de schema/seed pero antes de tráfico público | Mantener dominio sin apuntar, corregir SQL/código y repetir verificación. |
+| Después de schema/import de datos pero antes de tráfico público | Mantener dominio sin apuntar, corregir SQL/código y repetir verificación. |
 | Después de tráfico público | Pausar difusión, revertir deploy, revisar logs Supabase/Vercel y restaurar datos solo si el maintainer lo autoriza. |
 
 No borrar tablas ni usuarios en producción sin backup y aprobación explícita.
