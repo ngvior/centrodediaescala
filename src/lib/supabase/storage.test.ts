@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ensureBucketExists, uploadImage, deleteImage } from "./storage";
+import {
+	MAX_IMAGE_SIZE_BYTES,
+	OVERSIZED_IMAGE_MESSAGE,
+} from "@/lib/images";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 vi.mock("@/lib/supabase/admin", () => ({
@@ -104,10 +108,13 @@ describe("Supabase Storage Helpers", () => {
 			);
 		});
 
-		it("throws an error if file size exceeds 5MB", async () => {
-			const largeFile = { size: 6 * 1024 * 1024, type: "image/png" } as File;
+		it("throws an error if file size exceeds the image limit", async () => {
+			const largeFile = {
+				size: MAX_IMAGE_SIZE_BYTES + 1,
+				type: "image/png",
+			} as File;
 			await expect(uploadImage(largeFile, "folder")).rejects.toThrow(
-				"El archivo es demasiado grande (máximo 5MB).",
+				OVERSIZED_IMAGE_MESSAGE,
 			);
 		});
 

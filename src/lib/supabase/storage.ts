@@ -1,15 +1,13 @@
 import "server-only";
 
+import {
+	ALLOWED_IMAGE_MIME_TYPES,
+	MAX_IMAGE_SIZE_BYTES,
+	OVERSIZED_IMAGE_MESSAGE,
+} from "@/lib/images";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const BUCKET_NAME = "cms-images";
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-const ALLOWED_MIME_TYPES = [
-	"image/jpeg",
-	"image/png",
-	"image/webp",
-	"image/gif",
-];
 
 /**
  * Ensures the 'cms-images' public bucket exists.
@@ -27,8 +25,8 @@ export async function ensureBucketExists(): Promise<void> {
 			BUCKET_NAME,
 			{
 				public: true,
-				allowedMimeTypes: ALLOWED_MIME_TYPES,
-				fileSizeLimit: MAX_FILE_SIZE,
+				allowedMimeTypes: ALLOWED_IMAGE_MIME_TYPES,
+				fileSizeLimit: MAX_IMAGE_SIZE_BYTES,
 			},
 		);
 
@@ -52,13 +50,15 @@ export async function uploadImage(file: File, folder: string): Promise<string> {
 		throw new Error("No se seleccionó ningún archivo de imagen válido.");
 	}
 
-	// 1. Validate File Size (Max 5MB)
-	if (file.size > MAX_FILE_SIZE) {
-		throw new Error("El archivo es demasiado grande (máximo 5MB).");
+	// 1. Validate File Size. Defence in depth: an oversized body never reaches
+	// this action (Next.js rejects it first), so the field also validates in the
+	// browser. This guards non-form callers.
+	if (file.size > MAX_IMAGE_SIZE_BYTES) {
+		throw new Error(OVERSIZED_IMAGE_MESSAGE);
 	}
 
 	// 2. Validate MIME Type
-	if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+	if (!ALLOWED_IMAGE_MIME_TYPES.includes(file.type)) {
 		throw new Error(
 			"Formato de imagen no soportado. Use JPEG, PNG, WEBP o GIF.",
 		);

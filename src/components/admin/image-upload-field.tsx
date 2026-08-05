@@ -5,6 +5,12 @@ import { ImageIcon } from "lucide-react";
 
 import { ImageLightbox } from "@/components/admin/image-lightbox";
 import { Input } from "@/components/ui/input";
+import {
+	ACCEPTED_IMAGE_MIME_TYPES,
+	MAX_IMAGE_SIZE_BYTES,
+	MAX_IMAGE_SIZE_LABEL,
+	OVERSIZED_IMAGE_MESSAGE,
+} from "@/lib/images";
 
 /**
  * Turns the primitive file input's selector button into a small bordered CTA.
@@ -14,12 +20,13 @@ const FILE_INPUT_CLASSNAME =
 	"file:mr-3 file:h-7 file:rounded-[9px] file:border file:border-border file:bg-white file:px-3 file:font-bold";
 
 /**
- * Accepted formats + size limit mirror the server-side validation in
- * src/lib/supabase/storage.ts (MAX_FILE_SIZE = 5MB, ALLOWED_MIME_TYPES =
- * jpeg/png/webp/gif). Keep this copy in sync if those limits change.
+ * Accepted formats and the size limit both come from src/lib/images.ts, the same
+ * module the server-side upload helper reads, so the copy can never drift from
+ * what the upload actually accepts.
  */
-const DEFAULT_HELP_TEXT = "JPG, PNG, WEBP o GIF. Máximo 5 MB.";
-const ACCEPTED_MIME_TYPES = "image/jpeg,image/png,image/webp,image/gif";
+const DEFAULT_HELP_TEXT = `JPG, PNG, WEBP o GIF. Máximo ${MAX_IMAGE_SIZE_LABEL}.`;
+
+const TOAST_DISMISS_MS = 4000;
 
 type ImageUploadFieldProps = {
 	name?: string;
@@ -43,6 +50,7 @@ export function ImageUploadField({
 	required = false,
 }: ImageUploadFieldProps) {
 	const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+	const [toast, setToast] = useState<{ message: string } | null>(null);
 	const objectUrlRef = useRef<string | null>(null);
 
 	useEffect(() => {
@@ -53,6 +61,17 @@ export function ImageUploadField({
 		};
 	}, []);
 
+	// Auto-dismiss: `toast` is a fresh object per rejection, so picking another
+	// oversized file restarts the timer, and unmounting clears a pending one.
+	useEffect(() => {
+		if (!toast) {
+			return;
+		}
+
+		const timer = setTimeout(() => setToast(null), TOAST_DISMISS_MS);
+		return () => clearTimeout(timer);
+	}, [toast]);
+
 	function handleChange(event: ChangeEvent<HTMLInputElement>) {
 		const file = event.target.files?.[0];
 
@@ -60,6 +79,19 @@ export function ImageUploadField({
 			URL.revokeObjectURL(objectUrlRef.current);
 			objectUrlRef.current = null;
 		}
+
+		// A body over `serverActions.bodySizeLimit` is rejected by Next.js before
+		// the Server Action runs, so the action can never report it and the submit
+		// would fail with no feedback. Reject here and clear the input so the
+		// oversized file cannot be submitted at all.
+		if (file && file.size > MAX_IMAGE_SIZE_BYTES) {
+			event.target.value = "";
+			setPreviewUrl(null);
+			setToast({ message: OVERSIZED_IMAGE_MESSAGE });
+			return;
+		}
+
+		setToast(null);
 
 		if (file) {
 			const url = URL.createObjectURL(file);
@@ -110,7 +142,7 @@ export function ImageUploadField({
 						<Input
 							type="file"
 							name={name}
-							accept={ACCEPTED_MIME_TYPES}
+							accept={ACCEPTED_IMAGE_MIME_TYPES}
 							required={required && !existingUrl}
 							onChange={handleChange}
 							className={FILE_INPUT_CLASSNAME}
@@ -119,6 +151,22 @@ export function ImageUploadField({
 					</div>
 				</div>
 			</div>
+
+			{/*
+			 * Fixed overlay at z-[60] so it clears the admin dialogs (z-50) this
+			 * field always renders inside.
+			 */}
+			{toast ? (
+				<div
+					role="alert"
+					className="fixed bottom-7 left-1/2 z-[60] flex -translate-x-1/2 items-center gap-2.5 rounded-[12px] bg-[#7f1d1d] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_30px_-8px_rgba(127,29,29,0.5)] duration-200 animate-in fade-in-0 zoom-in-98 slide-in-from-bottom-2"
+				>
+					<span aria-hidden className="text-base text-[#fca5a5]">
+						!
+					</span>
+					{toast.message}
+				</div>
+			) : null}
 		</div>
 	);
 }
