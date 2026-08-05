@@ -24,6 +24,7 @@ import { TruncatedText } from "@/components/admin/truncated-text";
 import { useActionDialog } from "@/components/admin/use-action-dialog";
 import { useDeleteAction } from "@/components/admin/use-delete-action";
 import { useReorder } from "@/components/admin/use-reorder";
+import { PROFESSIONAL_IMAGE_ASPECT_RATIO } from "@/lib/images";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -66,7 +67,16 @@ function ProfessionalFormFields({ item }: { item?: AdminProfessional }) {
 				<label className="text-sm font-medium">Bio</label>
 				<Input name="bio" defaultValue={item?.bio ?? ""} />
 			</div>
-			<ImageUploadField existingUrl={item?.image_url} />
+			{/*
+			 * The public site renders this photo in a circle with `object-cover`, so
+			 * the admin picks the square that stays visible instead of letting the
+			 * browser centre-crop and cut faces off.
+			 */}
+			<ImageUploadField
+				existingUrl={item?.image_url}
+				aspectRatio={PROFESSIONAL_IMAGE_ASPECT_RATIO}
+				circularCrop
+			/>
 		</>
 	);
 }
