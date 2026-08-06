@@ -226,7 +226,7 @@ describe("admin actions", () => {
 		});
 	});
 
-	it("reads admin gallery items after admin auth with admin ordering", async () => {
+	it("reads admin gallery items newest first, mirroring the public ordering", async () => {
 		const { client, queries } = createSupabaseClientMock([
 			{
 				table: "gallery_items",
@@ -243,8 +243,14 @@ describe("admin actions", () => {
 			actionMocks.createAdminClient.mock.invocationCallOrder[0],
 		);
 		expect(client.from).toHaveBeenCalledWith("gallery_items");
+		// A scalar read of the binding, with no embedded category: the admin list
+		// still labels photos by their legacy text, and joining here would cost a
+		// query for something nothing renders yet.
+		expect(queries[0].select).toHaveBeenCalledWith(
+			"id, title, category, category_id, image_url, is_active, order_index",
+		);
 		expect(queries[0].order).toHaveBeenCalledWith("order_index", {
-			ascending: true,
+			ascending: false,
 		});
 	});
 
@@ -748,6 +754,73 @@ describe("admin actions", () => {
 		);
 	});
 
+	it("stores the encoded image dimensions the browser reports on create", async () => {
+		const { client, queries } = createSupabaseClientMock([
+			{
+				table: "gallery_items",
+				response: { data: { order_index: 2 }, error: null },
+			},
+			{ table: "gallery_items", response: { data: null, error: null } },
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+
+		await expect(
+			createGalleryItem(
+				IDLE_STATE,
+				createGalleryItemFormData({ image_width: 2048, image_height: 1536 }),
+			),
+		).resolves.toEqual({ status: "success" });
+
+		expect(queries[1].insert).toHaveBeenCalledWith(
+			expect.objectContaining({ width: 2048, height: 1536 }),
+		);
+	});
+
+	// An animated GIF skips the browser re-encode, so it arrives with no
+	// dimensions. The row still has to be created; the public grid falls back to
+	// its nominal box for it.
+	it("creates a gallery item with null dimensions when the browser sent none", async () => {
+		const { client, queries } = createSupabaseClientMock([
+			{
+				table: "gallery_items",
+				response: { data: { order_index: 2 }, error: null },
+			},
+			{ table: "gallery_items", response: { data: null, error: null } },
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+
+		await expect(
+			createGalleryItem(IDLE_STATE, createGalleryItemFormData()),
+		).resolves.toEqual({ status: "success" });
+
+		expect(queries[1].insert).toHaveBeenCalledWith(
+			expect.objectContaining({ width: null, height: null }),
+		);
+	});
+
+	// Editing only the title must not touch the stored dimensions: the image is
+	// unchanged, and nulling them would reintroduce the layout shift for that row.
+	it("leaves stored dimensions alone when an update carries no new image", async () => {
+		const { client, queries } = createSupabaseClientMock([
+			{ table: "gallery_items", response: { data: null, error: null } },
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+
+		await expect(
+			updateGalleryItem(
+				IDLE_STATE,
+				createGalleryItemFormData({ id: "gallery-id" }),
+			),
+		).resolves.toEqual({ status: "success" });
+
+		expect(queries[0].update).toHaveBeenCalledWith(
+			expect.not.objectContaining({ width: expect.anything() }),
+		);
+		expect(queries[0].update).toHaveBeenCalledWith(
+			expect.not.objectContaining({ height: expect.anything() }),
+		);
+	});
+
 	it("updates, toggles, and deletes gallery items through the admin client", async () => {
 		const { client, queries } = createSupabaseClientMock([
 			{ table: "gallery_items", response: { data: null, error: null } },
@@ -1134,7 +1207,7 @@ describe("admin actions", () => {
 	});
 
 	describe("reorderRecords", () => {
-		it("persists array position as order_index for each id and revalidates", async () => {
+		it("persists array position as order_index for an ascending listing and revalidates", async () => {
 			const { client, queries } = createSupabaseClientMock([
 				{ table: "activities", response: { data: null, error: null } },
 				{ table: "activities", response: { data: null, error: null } },
@@ -1156,6 +1229,55 @@ describe("admin actions", () => {
 				"/admin/actividades",
 			);
 			expect(actionMocks.revalidatePath).toHaveBeenCalledWith("/");
+		});
+
+		it("mirrors array position into order_index for a descending listing", async () => {
+			// getAdminGalleryItems reads order_index DESC, so the visually first id
+			// must receive the HIGHEST index. Assigning the raw array position here
+			// inverted the whole gallery on every drag.
+			const { client, queries } = createSupabaseClientMock([
+				{ table: "gallery_items", response: { data: null, error: null } },
+				{ table: "gallery_items", response: { data: null, error: null } },
+				{ table: "gallery_items", response: { data: null, error: null } },
+			]);
+			actionMocks.createAdminClient.mockReturnValue(client);
+
+			await reorderRecords("gallery_items", ["top-id", "middle-id", "bottom-id"]);
+
+			expect(queries[0].update).toHaveBeenCalledWith({ order_index: 2 });
+			expect(queries[0].eq).toHaveBeenCalledWith("id", "top-id");
+			expect(queries[1].update).toHaveBeenCalledWith({ order_index: 1 });
+			expect(queries[1].eq).toHaveBeenCalledWith("id", "middle-id");
+			expect(queries[2].update).toHaveBeenCalledWith({ order_index: 0 });
+			expect(queries[2].eq).toHaveBeenCalledWith("id", "bottom-id");
+		});
+
+		it("keeps a dragged pair adjacent when the listing is descending", async () => {
+			// Regression guard for the reported symptom: swapping two neighbours
+			// used to come back with the entire list reversed, so the swap looked
+			// undone. A round-trip through the DESC read must reproduce the input.
+			const ids = ["a", "b", "c", "d"];
+			const { client, queries } = createSupabaseClientMock(
+				ids.map(() => ({
+					table: "gallery_items" as const,
+					response: { data: null, error: null },
+				})),
+			);
+			actionMocks.createAdminClient.mockReturnValue(client);
+
+			await reorderRecords("gallery_items", ids);
+
+			const persisted = ids.map((id, index) => ({
+				id,
+				order_index: (
+					queries[index].update.mock.calls[0][0] as { order_index: number }
+				).order_index,
+			}));
+			const readBackDescending = [...persisted]
+				.sort((left, right) => right.order_index - left.order_index)
+				.map((row) => row.id);
+
+			expect(readBackDescending).toEqual(ids);
 		});
 
 		it("revalidates the matching paths for each reorderable table", async () => {

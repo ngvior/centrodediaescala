@@ -57,7 +57,7 @@ function GalleryFormFields({ item }: { item?: AdminGalleryItem }) {
 					<Input name="category" defaultValue={item?.category} required />
 				</div>
 			</div>
-			<ImageUploadField existingUrl={item?.image_url} required={!item} />
+			<ImageUploadField existingUrl={item?.image_url} required={!item} optimize />
 		</>
 	);
 }

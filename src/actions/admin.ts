@@ -40,6 +40,12 @@ export type AdminGalleryItem = {
 	id: string;
 	title: string;
 	category: string;
+	/**
+	 * The gallery_categories record this photo is bound to, null while it is
+	 * still described only by its legacy text. Read but not yet edited: the admin
+	 * category picker arrives in a later change.
+	 */
+	category_id: string | null;
 	image_url: string;
 	is_active: boolean;
 	order_index: number;
@@ -218,6 +224,25 @@ function getOptionalString(formData: FormData, key: string) {
 	return trimmed.length > 0 ? trimmed : null;
 }
 
+/**
+ * Reads a positive integer written by the browser, not by a human: the gallery
+ * field emits the encoded image's dimensions as hidden inputs. Anything missing
+ * or unparseable becomes null so the column simply stays empty — an image whose
+ * dimensions are unknown renders through the same fallback as the rows that
+ * predate the columns.
+ */
+function getOptionalDimension(formData: FormData, key: string) {
+	const value = formData.get(key);
+
+	if (typeof value !== "string" || value.trim().length === 0) {
+		return null;
+	}
+
+	const parsed = Number.parseInt(value, 10);
+
+	return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
 function getCheckboxBoolean(
 	formData: FormData,
 	key: string,
@@ -308,8 +333,10 @@ function toActionError(error: unknown): ActionResult {
 
 /**
  * Computes the next order_index for a new row as max(order_index) + 1 via a
- * single pre-insert read. New records always land at the end of the list, so
- * the form no longer needs an order_index input.
+ * single pre-insert read, so the form no longer needs an order_index input.
+ * Where a new row lands depends on the listing's ORDER BY: at the end of an
+ * ascending listing, at the top of a descending one (the gallery's
+ * newest-images-first contract). See REORDERABLE_TABLES.
  */
 async function getNextOrderIndex(
 	supabase: ReturnType<typeof createAdminClient>,
@@ -333,20 +360,33 @@ async function getNextOrderIndex(
 	return (response.data?.order_index ?? -1) + 1;
 }
 
+/**
+ * Reorderable tables, each paired with its cache invalidation and the direction
+ * its listing reads order_index in.
+ *
+ * `listing` MUST mirror the ORDER BY of the corresponding getAdmin* read. The
+ * writer below derives order_index from it, so a drag round-trips to the same
+ * visual order. Gallery lists newest-first ("desc", see getAdminGalleryItems);
+ * the other three list oldest-first ("asc"). Flipping a listing's ORDER BY
+ * without flipping its entry here inverts the whole list on the next save.
+ */
 const REORDERABLE_TABLES = {
-	professionals: revalidateProfessionalPaths,
-	activities: revalidateActivityPaths,
-	gallery_items: revalidateGalleryPaths,
-	home_objectives: revalidateObjectivePaths,
+	professionals: { revalidate: revalidateProfessionalPaths, listing: "asc" },
+	activities: { revalidate: revalidateActivityPaths, listing: "asc" },
+	gallery_items: { revalidate: revalidateGalleryPaths, listing: "desc" },
+	home_objectives: { revalidate: revalidateObjectivePaths, listing: "asc" },
 } as const;
 
 export type ReorderableTable = keyof typeof REORDERABLE_TABLES;
 
 /**
- * Persists a manual drag-and-drop ordering. Each id's array position becomes
- * its order_index. Admin lists are tiny (< 50 rows) and reorder is a rare
- * manual action, so per-row updates run in parallel via Promise.all (no RPC,
- * no migration).
+ * Persists a manual drag-and-drop ordering. `ids` arrives in visual order (top
+ * → bottom) and every row is rewritten to a compact 0..n-1 range, assigned so
+ * that re-reading the table with its own ORDER BY reproduces that same visual
+ * order: ascending listings take the array position, descending listings take
+ * its mirror. Admin lists are tiny (< 50 rows) and reorder is a rare manual
+ * action, so per-row updates run in parallel via Promise.all (no RPC, no
+ * migration).
  */
 export async function reorderRecords(
 	table: ReorderableTable,
@@ -357,9 +397,9 @@ export async function reorderRecords(
 	// Server-action arguments are untrusted at runtime regardless of the TS type,
 	// so this guard validates the `table` arg crossing the action boundary before
 	// it reaches the query builder.
-	const revalidate = REORDERABLE_TABLES[table];
+	const config = REORDERABLE_TABLES[table];
 
-	if (!revalidate) {
+	if (!config) {
 		throw new Error(`Tabla no reordenable: ${table}`);
 	}
 
@@ -367,12 +407,19 @@ export async function reorderRecords(
 		return;
 	}
 
+	const { revalidate, listing } = config;
+	const lastPosition = ids.length - 1;
 	const supabase = createAdminClient();
 	// Not atomic: per-row updates run in parallel without a transaction. Acceptable
 	// for tiny admin lists — a partial failure self-heals on the next refresh.
 	const results = await Promise.all(
-		ids.map((id, index) =>
-			supabase.from(table).update({ order_index: index }).eq("id", id),
+		ids.map((id, position) =>
+			supabase
+				.from(table)
+				.update({
+					order_index: listing === "desc" ? lastPosition - position : position,
+				})
+				.eq("id", id),
 		),
 	);
 
@@ -439,10 +486,12 @@ export async function getAdminGalleryItems(): Promise<AdminGalleryItem[]> {
 	await requireAdmin();
 
 	const supabase = createAdminClient();
+	// Mirrors the public ordering, so the top of the admin list is the top of the
+	// public gallery and the client can see what a visitor lands on.
 	const response = await supabase
 		.from("gallery_items")
-		.select("id, title, category, image_url, is_active, order_index")
-		.order("order_index", { ascending: true })
+		.select("id, title, category, category_id, image_url, is_active, order_index")
+		.order("order_index", { ascending: false })
 		.order("title", { ascending: true });
 
 	return assertReadSucceeded(
@@ -1017,6 +1066,8 @@ export async function createGalleryItem(
 			image_url: imageUrl,
 			is_active: getCheckboxBoolean(formData, "is_active", true),
 			order_index: orderIndex,
+			width: getOptionalDimension(formData, "image_width"),
+			height: getOptionalDimension(formData, "image_height"),
 		};
 
 		const { error } = await supabase.from("gallery_items").insert(payload);
@@ -1058,6 +1109,16 @@ export async function updateGalleryItem(
 			category: getRequiredString(formData, "category"),
 			image_url: imageUrl,
 			is_active: getCheckboxBoolean(formData, "is_active"),
+			// Dimensions are only touched when the image itself is replaced, and then
+			// they are always rewritten — to null if the browser produced none. Left
+			// alone, they would describe the new image with the old one's numbers and
+			// the public grid would reserve the wrong box for it.
+			...(hasUpload
+				? {
+						width: getOptionalDimension(formData, "image_width"),
+						height: getOptionalDimension(formData, "image_height"),
+					}
+				: {}),
 		};
 
 		const supabase = createAdminClient();

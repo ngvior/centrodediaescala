@@ -1,5 +1,10 @@
 import { cache } from "react";
 
+import {
+	toGalleryItem,
+	type GalleryItem,
+	type GalleryItemJoinRow,
+} from "@/lib/gallery-category";
 import { createClient } from "@/lib/supabase/server";
 import {
 	parsePublicSiteSettings,
@@ -44,12 +49,11 @@ export type Event = {
 	cover_image_url: string | null;
 };
 
-export type GalleryItem = {
-	id: string;
-	title: string;
-	category: string;
-	image_url: string;
-};
+/**
+ * Owned by `@/lib/gallery-category`, which resolves the shape, and re-exported
+ * here so every consumer keeps importing its page data from one module.
+ */
+export type { GalleryItem };
 
 type SupabaseResponse<T> = {
 	data: T | null;
@@ -142,14 +146,31 @@ export async function getEvents(): Promise<Event[]> {
 
 export async function getGalleryItems(): Promise<GalleryItem[]> {
 	const supabase = await createClient({ anon: true });
+	// Newest first. The public section pages rather than accumulating, so page one
+	// is what most visitors ever see, and `order_index` grows with each upload —
+	// ascending would bury everything the client adds behind the oldest photos.
+	// The title tiebreaker matches getAdminGalleryItems: `order_index` is not
+	// unique, and without it two rows sharing one could come back in a different
+	// order per request, so the public gallery and the admin listing would
+	// disagree about what sits on the first page.
+	//
+	// The category is LEFT-joined, never `!inner`: an item that is not bound to a
+	// category, or whose category is inactive and therefore invisible under anon
+	// RLS, must still reach the visitor. An inner join would silently drop it.
+	// `toGalleryItem` falls those rows back to their legacy text.
 	const response = await supabase
 		.from("gallery_items")
-		.select("id, title, category, image_url")
+		.select(
+			"id, title, category, category_id, image_url, width, height, gallery_categories(name, is_active)",
+		)
 		.eq("is_active", true)
-		.order("order_index", { ascending: true });
+		.order("order_index", { ascending: false })
+		.order("title", { ascending: true });
 
-	return assertSupabaseData(
+	const rows = assertSupabaseData(
 		"gallery_items",
-		response as SupabaseResponse<GalleryItem[]>,
+		response as SupabaseResponse<GalleryItemJoinRow[]>,
 	);
+
+	return rows.map(toGalleryItem);
 }

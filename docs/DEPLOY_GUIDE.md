@@ -81,12 +81,27 @@ La estructura se crea con `supabase/schema.sql`. El contenido **no** se crea con
 
 | Orden | Archivo | Cuándo ejecutarlo | Resultado esperado |
 |-------|---------|-------------------|--------------------|
-| 1 | `supabase/schema.sql` | Una vez por ambiente, después del deploy/env. | Crea tablas, índices, GRANTs, RLS policies y RPC de rate limit. |
+| 1 | `supabase/schema.sql` | Una vez por ambiente, después del deploy/env. Es idempotente: **también se re-ejecuta** cuando el repositorio agrega columnas a una tabla existente (ver más abajo). | Crea tablas, índices, GRANTs, RLS policies y RPC de rate limit. |
 | 2 | Export de datos (`pg_dump --data-only` o dump de Supabase) | Una sola vez después del schema, sobre un ambiente vacío. | Carga el contenido real y vigente del sitio público y del CMS. |
 
 > **Guardrail: nunca ejecutar `supabase/seed.sql` contra una base que ya tiene contenido real.** Dos motivos concretos: (1) el archivo abre con un `DELETE FROM public.gallery_items;` que borra todas las fotos cargadas desde el panel; (2) el resto de sus bloques usa `ON CONFLICT ... DO UPDATE`, así que sobrescribe silenciosamente las ediciones del cliente con los textos viejos del repositorio.
 >
 > `seed.sql` conserva un único uso legítimo: **bootstrapear un ambiente de desarrollo nuevo y vacío**, donde no hay contenido real que perder.
+
+### Cambios de esquema sobre una base que ya existe
+
+Todas las tablas de `schema.sql` se crean con `CREATE TABLE IF NOT EXISTS`. La consecuencia es contraintuitiva y hay que tenerla presente: **una columna agregada adentro de un bloque `CREATE TABLE` nunca llega a una base que ya está andando**, porque la sentencia entera se saltea. El cambio se ve en un ambiente nuevo y en ninguno de los existentes.
+
+Por eso, toda columna agregada después del release inicial se declara **dos veces**:
+
+1. Dentro del `CREATE TABLE` correspondiente → sirve a los ambientes nuevos.
+2. Como `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` en la sección de cambios, después de los `CREATE` → sirve a las bases vivas, y es no-op una vez aplicada.
+
+Las dos tienen que quedar sincronizadas. Con solo el `ALTER`, un ambiente nuevo nunca recibe la columna. Con solo el `CREATE`, el import del `pg_dump --data-only` falla sobre el proyecto nuevo porque la columna del dump no existe en la tabla destino.
+
+Para aplicar un cambio de este tipo a un ambiente existente basta con **re-ejecutar `schema.sql` completo**: es idempotente de punta a punta y no toca contenido.
+
+> **Orden obligatorio: primero el SQL, después el deploy.** El código lee las columnas nuevas por nombre, así que si se despliega antes de aplicar el `ALTER`, la lectura falla y la página que la usa se cae (`column ... does not exist`). Aplicar el schema primero no rompe nada: la base tolera columnas que todavía nadie lee.
 
 ### Checklist SQL
 

@@ -1,6 +1,12 @@
 import { describe, it, expect } from "vitest";
 
-import { planCropDraw } from "@/lib/images";
+import {
+	ALLOWED_IMAGE_MIME_TYPES,
+	GALLERY_OUTPUT_MAX_EDGE,
+	isOptimizableImageType,
+	planCropDraw,
+	planFullFrameResize,
+} from "@/lib/images";
 
 describe("planCropDraw", () => {
 	const image = { width: 2000, height: 1500 };
@@ -74,5 +80,62 @@ describe("planCropDraw", () => {
 			canvasWidth: 512,
 			canvasHeight: 512,
 		});
+	});
+});
+
+describe("planFullFrameResize", () => {
+	it("reads the whole frame, never a sub-region", () => {
+		const plan = planFullFrameResize({ width: 4000, height: 3000 }, 2048);
+
+		expect(plan.source).toEqual({ x: 0, y: 0, width: 4000, height: 3000 });
+	});
+
+	it("scales a landscape photo down to the max edge preserving its ratio", () => {
+		const plan = planFullFrameResize({ width: 4000, height: 3000 }, 2048);
+
+		expect(plan.canvasWidth).toBe(2048);
+		expect(plan.canvasHeight).toBe(1536);
+	});
+
+	it("scales a portrait photo by its long edge, which is the height", () => {
+		const plan = planFullFrameResize({ width: 3000, height: 4000 }, 2048);
+
+		expect(plan.canvasHeight).toBe(2048);
+		expect(plan.canvasWidth).toBe(1536);
+	});
+
+	// The gallery renders previews uncropped, so a resize that drifted off the
+	// source ratio would letterbox or squash the photo on the public site.
+	it("never upscales an image already smaller than the max edge", () => {
+		const plan = planFullFrameResize({ width: 800, height: 600 }, 2048);
+
+		expect(plan.canvasWidth).toBe(800);
+		expect(plan.canvasHeight).toBe(600);
+	});
+
+	it("defaults to the gallery max edge", () => {
+		const plan = planFullFrameResize({ width: 8000, height: 8000 });
+
+		expect(plan.canvasWidth).toBe(GALLERY_OUTPUT_MAX_EDGE);
+		expect(plan.canvasHeight).toBe(GALLERY_OUTPUT_MAX_EDGE);
+	});
+});
+
+describe("isOptimizableImageType", () => {
+	it("accepts the still formats the gallery re-encodes", () => {
+		expect(isOptimizableImageType("image/jpeg")).toBe(true);
+		expect(isOptimizableImageType("image/png")).toBe(true);
+		expect(isOptimizableImageType("image/webp")).toBe(true);
+	});
+
+	// A canvas re-encode keeps only the first frame, so an animated GIF would
+	// silently lose its animation. It stays on the plain upload path instead.
+	it("rejects GIF so an animated upload is never flattened", () => {
+		expect(isOptimizableImageType("image/gif")).toBe(false);
+	});
+
+	it("rejects a type the upload does not accept at all", () => {
+		expect(isOptimizableImageType("image/avif")).toBe(false);
+		expect(ALLOWED_IMAGE_MIME_TYPES).not.toContain("image/avif");
 	});
 });

@@ -1,18 +1,52 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import type { GalleryItem } from "@/lib/api";
+import {
+  GALLERY_PAGE_SIZE,
+  clampPage,
+  getPageCount,
+  getPageForIndex,
+  getPageItems,
+  wrapIndex,
+} from "@/lib/gallery-pagination";
 
-const GALLERY_VISIBLE_INCREMENT = 20;
+const GALLERY_SECTION_ID = "galeria";
+
+/**
+ * Nominal box for a row stored before the browser started capturing dimensions.
+ * It only decides how much space is reserved before the photo decodes — the
+ * preview itself stays `h-auto object-contain` and is never cropped. Rows that
+ * do carry dimensions reserve their real box, which is what stops the section
+ * from jumping as images load.
+ */
+const FALLBACK_IMAGE_WIDTH = 640;
+const FALLBACK_IMAGE_HEIGHT = 480;
 
 const gridItemVariants = {
   hidden: { opacity: 0, scale: 0.94 },
   visible: { opacity: 1, scale: 1 },
   exit: { opacity: 0, scale: 0.9 },
 };
+
+/**
+ * Next lightbox position, plus the page that holds it.
+ *
+ * Module scope on purpose: both the arrow buttons and the keyboard handler need
+ * this, and a stable identity is what keeps the keyboard effect from
+ * re-subscribing on every render.
+ */
+function nextLightboxPosition(current: number, total: number, delta: 1 | -1) {
+  const index = wrapIndex(current, total, delta);
+
+  return { index, page: getPageForIndex(index) };
+}
+
+const PAGE_BUTTON_CLASSNAME =
+  "inline-flex items-center gap-1.5 rounded-lg bg-[#ff7e2e] px-6 py-3 font-bold uppercase text-white transition-colors hover:bg-[#e86f24] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7e2e] focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-40";
 
 interface GallerySectionProps {
   gallery: GalleryItem[];
@@ -28,7 +62,8 @@ export function GallerySection({
   const [activeFilter, setActiveFilter] = useState<string>(
     galleryFilterLabels[0] || "Todas",
   );
-  const [visibleCount, setVisibleCount] = useState(GALLERY_VISIBLE_INCREMENT);
+  const [page, setPage] = useState(0);
+  /** Absolute index into the filtered collection, not into the current page. */
   const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(
     null,
   );
@@ -41,56 +76,92 @@ export function GallerySection({
     : gallery.filter(
         (item) => item.category.toLowerCase() === activeFilter.toLowerCase(),
       );
-  const visibleItems = filteredItems.slice(0, visibleCount);
-  const hasMoreItems = visibleCount < filteredItems.length;
+  // Read once as a primitive. The callbacks below depend on how many items the
+  // filter matched, and depending on `filteredItems.length` instead would defeat
+  // their memoization: the array is handed to imported helpers, so the React
+  // Compiler has to assume those could mutate it.
+  const filteredCount = filteredItems.length;
+
+  const pageCount = getPageCount(filteredCount);
+  // Clamped on read rather than corrected in an effect: the collection shrinks
+  // under the visitor when a narrower category is selected, and a page index
+  // past the end would otherwise render an empty grid for one frame.
+  const currentPage = clampPage(page, filteredCount);
+  const pageItems = getPageItems(filteredItems, currentPage);
 
   const handleFilterClick = (label: string) => {
     setActiveFilter(label);
-    setVisibleCount(GALLERY_VISIBLE_INCREMENT);
+    setPage(0);
     setSelectedItemIndex(null);
   };
 
-  const handleShowMore = () => {
-    setVisibleCount((count) =>
-      Math.min(count + GALLERY_VISIBLE_INCREMENT, filteredItems.length),
-    );
+  const goToPage = (nextPage: number) => {
+    setPage(clampPage(nextPage, filteredCount));
+
+    // The grid is replaced wholesale, so without this the visitor is left
+    // standing in the middle of a page they never saw the start of. Animating
+    // that jump is a preference, not a requirement, so it is skipped for anyone
+    // who asked for less motion.
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+
+    document.getElementById(GALLERY_SECTION_ID)?.scrollIntoView({
+      block: "start",
+      behavior: prefersReducedMotion ? "auto" : "smooth",
+    });
   };
 
   // Lightbox handlers
-  const handleOpenLightbox = (index: number) => {
-    setSelectedItemIndex(index);
+  const handleOpenLightbox = (indexInPage: number) => {
+    setSelectedItemIndex(currentPage * GALLERY_PAGE_SIZE + indexInPage);
   };
 
-  const handleCloseLightbox = useCallback(() => {
+  const handleCloseLightbox = () => {
     setSelectedItemIndex(null);
-  }, []);
+  };
 
-  const handlePrev = useCallback(() => {
-    if (selectedItemIndex === null || visibleItems.length === 0) return;
-    setSelectedItemIndex((prev) =>
-      prev === null ? null : prev === 0 ? visibleItems.length - 1 : prev - 1,
-    );
-  }, [selectedItemIndex, visibleItems.length]);
+  /**
+   * Walks the whole filtered collection, not just the visible page: paging keeps
+   * the section short, and the lightbox is where a visitor who wants to see
+   * everything gets to. The grid follows so closing the lightbox lands them on
+   * the page holding the photo they were last looking at.
+   */
+  const stepLightbox = (delta: 1 | -1) => {
+    if (selectedItemIndex === null || filteredCount === 0) {
+      return;
+    }
 
-  const handleNext = useCallback(() => {
-    if (selectedItemIndex === null || visibleItems.length === 0) return;
-    setSelectedItemIndex((prev) =>
-      prev === null ? null : prev === visibleItems.length - 1 ? 0 : prev + 1,
-    );
-  }, [selectedItemIndex, visibleItems.length]);
+    const next = nextLightboxPosition(selectedItemIndex, filteredCount, delta);
+    setSelectedItemIndex(next.index);
+    setPage(next.page);
+  };
 
-  // Handle keyboard events inside the lightbox
+  // Handle keyboard events inside the lightbox.
+  //
+  // Depends only on primitives and setters, never on the handlers above: those
+  // are recreated every render, and listing them here would re-subscribe the
+  // listener and re-apply the body scroll lock on each one.
   useEffect(() => {
     if (selectedItemIndex === null) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        handleCloseLightbox();
-      } else if (e.key === "ArrowLeft") {
-        handlePrev();
-      } else if (e.key === "ArrowRight") {
-        handleNext();
+        setSelectedItemIndex(null);
+        return;
       }
+
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") {
+        return;
+      }
+
+      const next = nextLightboxPosition(
+        selectedItemIndex,
+        filteredCount,
+        e.key === "ArrowLeft" ? -1 : 1,
+      );
+      setSelectedItemIndex(next.index);
+      setPage(next.page);
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -101,13 +172,18 @@ export function GallerySection({
       window.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = "";
     };
-  }, [selectedItemIndex, handleCloseLightbox, handlePrev, handleNext]);
+  }, [selectedItemIndex, filteredCount]);
 
   const selectedItem =
-    selectedItemIndex !== null ? visibleItems[selectedItemIndex] : null;
+    selectedItemIndex !== null
+      ? (filteredItems[selectedItemIndex] ?? null)
+      : null;
 
   return (
-    <section id="galeria" className="w-full overflow-x-hidden bg-white py-16">
+    <section
+      id={GALLERY_SECTION_ID}
+      className="w-full overflow-x-hidden bg-white py-16"
+    >
       <div className="container px-4 md:px-6 mx-auto">
         <h2 className="text-3xl font-heading text-center mb-8 uppercase text-foreground">
           {gallerySectionTitle}
@@ -144,7 +220,7 @@ export function GallerySection({
         ) : (
           <div className="columns-2 md:columns-4 gap-0 [column-fill:_balance] transition-all duration-500">
             <AnimatePresence mode="popLayout">
-              {visibleItems.map((item, index) => (
+              {pageItems.map((item, index) => (
                 <motion.div
                   key={item.id}
                   variants={gridItemVariants}
@@ -179,8 +255,8 @@ export function GallerySection({
                     <Image
                       src={item.image_url}
                       alt={item.title}
-                      width={640}
-                      height={480}
+                      width={item.width ?? FALLBACK_IMAGE_WIDTH}
+                      height={item.height ?? FALLBACK_IMAGE_HEIGHT}
                       sizes="(min-width: 768px) 25vw, 50vw"
                       className="h-auto w-full object-contain transition-transform duration-500 group-hover:scale-105"
                     />
@@ -202,16 +278,42 @@ export function GallerySection({
         )}
       </div>
 
-      {hasMoreItems && (
-        <div className="container mx-auto flex justify-center px-4 pt-10 md:px-6">
+      {/*
+       * Pages replace each other instead of accumulating, so the section keeps a
+       * bounded height no matter how many photos the admin loads.
+       */}
+      {pageCount > 1 && (
+        <nav
+          aria-label="Paginación de la galería"
+          className="container mx-auto flex flex-wrap items-center justify-center gap-4 px-4 pt-10 md:px-6"
+        >
           <button
             type="button"
-            onClick={handleShowMore}
-            className="rounded-lg bg-[#ff7e2e] px-6 py-3 font-bold uppercase text-white transition-colors hover:bg-[#e86f24] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7e2e] focus-visible:ring-offset-2"
+            onClick={() => goToPage(currentPage - 1)}
+            disabled={currentPage === 0}
+            className={PAGE_BUTTON_CLASSNAME}
           >
-            Ver más
+            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+            Anterior
           </button>
-        </div>
+
+          <p
+            aria-live="polite"
+            className="text-sm font-bold uppercase text-muted-foreground"
+          >
+            Página {currentPage + 1} de {pageCount}
+          </p>
+
+          <button
+            type="button"
+            onClick={() => goToPage(currentPage + 1)}
+            disabled={currentPage === pageCount - 1}
+            className={PAGE_BUTTON_CLASSNAME}
+          >
+            Siguiente
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </nav>
       )}
 
       {/* Modern Lightbox Modal */}
@@ -237,7 +339,7 @@ export function GallerySection({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              handlePrev();
+              stepLightbox(-1);
             }}
             className="absolute left-4 p-3 rounded-full bg-white/10 text-white/80 hover:bg-white/20 hover:text-white transition-all duration-200 z-40"
             aria-label="Imagen anterior"
@@ -255,7 +357,8 @@ export function GallerySection({
                 src={selectedItem.image_url}
                 alt={selectedItem.title}
                 fill
-                priority
+                // `priority` is deprecated as of Next 16 in favour of `preload`.
+                preload
                 sizes="(min-width: 1200px) 1200px, 90vw"
                 className="object-contain transition-all duration-300"
               />
@@ -267,7 +370,7 @@ export function GallerySection({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              handleNext();
+              stepLightbox(1);
             }}
             className="absolute right-4 p-3 rounded-full bg-white/10 text-white/80 hover:bg-white/20 hover:text-white transition-all duration-200 z-40"
             aria-label="Siguiente imagen"
@@ -287,7 +390,7 @@ export function GallerySection({
               {selectedItem.category}
             </p>
             <div className="text-xs text-white/40">
-              {selectedItemIndex + 1} de {visibleItems.length}
+              {selectedItemIndex + 1} de {filteredCount}
             </div>
           </div>
         </div>

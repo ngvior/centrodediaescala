@@ -106,6 +106,21 @@ ON CONFLICT (title) DO UPDATE SET
   order_index = EXCLUDED.order_index,
   is_active = true;
 
+-- Mirrors the `gallery_filter_labels` setting above, minus the `Todas`
+-- catch-all, which is a UI affordance and never a category row. Hardcoded on
+-- purpose: seed.sql IS the fixture source and already hardcodes that labels
+-- array, so both copies are reviewed side by side. The live migration derives
+-- the same rows from the setting instead, because there the array may have been
+-- edited by an admin.
+INSERT INTO public.gallery_categories (name, order_index) VALUES
+('Deporte', 0),
+('Integración', 1),
+('Terapias Ocupacionales', 2),
+('Manos que Hacen', 3)
+ON CONFLICT (lower(name)) DO UPDATE SET
+  order_index = EXCLUDED.order_index,
+  is_active = true;
+
 INSERT INTO public.gallery_items (title, category, image_url, order_index, is_active) VALUES
 ('Actividades Deportivas', 'Deporte', '/galeria/1.jpg', 1, true),
 ('Natación', 'Deporte', '/galeria/2.jpg', 2, true),
@@ -128,6 +143,15 @@ ON CONFLICT (image_url) DO UPDATE SET
   category = EXCLUDED.category,
   order_index = EXCLUDED.order_index,
   is_active = EXCLUDED.is_active;
+
+-- Binds the fixtures above to their category record by the same trimmed,
+-- case-insensitive text match the migration uses. Runs after the items so a
+-- re-seeded row is re-bound; unmatched text simply stays unbound.
+UPDATE public.gallery_items gi
+SET category_id = gc.id
+FROM public.gallery_categories gc
+WHERE gi.category IS NOT NULL
+  AND lower(trim(gi.category)) = lower(trim(gc.name));
 
 INSERT INTO public.events (title, slug, content, event_date, cover_image_url, is_published) VALUES
 ('Caminata & Kermesse Anual', 'caminata-kermesse', 'El evento consistirá en la realización de la edición de Escala/Camina. La misma tiene como principal objetivo canalizar el acompañamiento de la sociedad, al tiempo que sensibiliza y contribuye a una sociedad más justa, equitativa, solidaria e inclusiva.', 'Octubre', '/camina/camina_main.jpg', true)

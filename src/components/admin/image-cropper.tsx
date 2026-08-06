@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import Cropper, { type Area } from "react-easy-crop";
 
 import { Button } from "@/components/ui/button";
+import { loadImage, renderPlanToFile } from "@/lib/browser-image";
 import {
 	CROP_OUTPUT_MIME,
 	CROP_OUTPUT_QUALITY,
@@ -31,26 +32,6 @@ type ImageCropperProps = {
 	onCancel: () => void;
 };
 
-/**
- * Loads the source into a detached image so the canvas reads full-resolution
- * pixels. The on-screen cropper element is scaled down for display, so drawing
- * from it would export a blurry photo.
- */
-function loadImage(src: string, remote: boolean): Promise<HTMLImageElement> {
-	return new Promise((resolve, reject) => {
-		const image = new Image();
-
-		if (remote) {
-			image.crossOrigin = "anonymous";
-		}
-
-		image.onload = () => resolve(image);
-		image.onerror = () =>
-			reject(new Error("No se pudo cargar la imagen para recortar."));
-		image.src = src;
-	});
-}
-
 async function toCroppedFile(
 	src: string,
 	area: CropArea,
@@ -63,36 +44,15 @@ async function toCroppedFile(
 		height: image.naturalHeight,
 	});
 
-	const canvas = document.createElement("canvas");
-	canvas.width = plan.canvasWidth;
-	canvas.height = plan.canvasHeight;
-
-	const context = canvas.getContext("2d");
-	if (!context) {
-		throw new Error("El navegador no pudo procesar el recorte.");
-	}
-
-	context.drawImage(
+	const encoded = await renderPlanToFile(
 		image,
-		plan.source.x,
-		plan.source.y,
-		plan.source.width,
-		plan.source.height,
-		0,
-		0,
-		plan.canvasWidth,
-		plan.canvasHeight,
+		plan,
+		CROP_OUTPUT_MIME,
+		CROP_OUTPUT_QUALITY,
+		fileName,
 	);
 
-	const blob = await new Promise<Blob | null>((resolve) =>
-		canvas.toBlob(resolve, CROP_OUTPUT_MIME, CROP_OUTPUT_QUALITY),
-	);
-
-	if (!blob) {
-		throw new Error("El recorte quedó vacío. Probá de nuevo.");
-	}
-
-	return new File([blob], fileName, { type: CROP_OUTPUT_MIME });
+	return encoded.file;
 }
 
 /**

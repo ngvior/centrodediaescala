@@ -7,13 +7,16 @@ import { ImageCropper } from "@/components/admin/image-cropper";
 import { ImageLightbox } from "@/components/admin/image-lightbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { optimizeImageForGallery } from "@/lib/browser-image";
 import {
 	ACCEPTED_IMAGE_MIME_TYPES,
 	ATTACH_CROP_FAILED_MESSAGE,
+	isOptimizableImageType,
 	MAX_IMAGE_SIZE_BYTES,
 	MAX_IMAGE_SIZE_LABEL,
 	MAX_SOURCE_IMAGE_SIZE_BYTES,
 	MAX_SOURCE_IMAGE_SIZE_LABEL,
+	OPTIMIZE_IMAGE_FAILED_MESSAGE,
 	OVERSIZED_IMAGE_MESSAGE,
 	OVERSIZED_SOURCE_IMAGE_MESSAGE,
 } from "@/lib/images";
@@ -39,6 +42,13 @@ const DEFAULT_HELP_TEXT = `JPG, PNG, WEBP o GIF. Máximo ${MAX_IMAGE_SIZE_LABEL}
  */
 const CROP_HELP_TEXT = `JPG, PNG, WEBP o GIF. Hasta ${MAX_SOURCE_IMAGE_SIZE_LABEL}: la foto se recorta y se optimiza antes de subirse.`;
 
+/**
+ * With optimisation on, the photo is re-encoded in the browser before upload, so
+ * the Server Action body limit stops being the admin's problem: a photo straight
+ * from a phone or camera is fine and nothing is cropped.
+ */
+const OPTIMIZE_HELP_TEXT = `JPG, PNG o WEBP hasta ${MAX_SOURCE_IMAGE_SIZE_LABEL}: la foto se optimiza sola antes de subirse, sin recortarse. GIF hasta ${MAX_IMAGE_SIZE_LABEL}.`;
+
 const TOAST_DISMISS_MS = 4000;
 
 type CropSource = {
@@ -62,6 +72,14 @@ type ImageUploadFieldProps = {
 	aspectRatio?: number;
 	/** Round crop overlay, for a photo the public site renders in a circle. */
 	circularCrop?: boolean;
+	/**
+	 * Re-encodes the selected photo in the browser before upload, keeping the
+	 * whole frame and its aspect ratio, and emits the encoded dimensions as
+	 * hidden fields. For callers whose images are rendered uncropped at their
+	 * natural ratio, which is the gallery. Ignored when `aspectRatio` is set:
+	 * cropping already re-encodes.
+	 */
+	optimize?: boolean;
 };
 
 /** Cropped output is always re-encoded, so the extension has to follow. */
@@ -90,18 +108,30 @@ export function ImageUploadField({
 	required = false,
 	aspectRatio,
 	circularCrop = false,
+	optimize = false,
 }: ImageUploadFieldProps) {
 	const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 	const [toast, setToast] = useState<{ message: string } | null>(null);
 	const [cropSource, setCropSource] = useState<CropSource | null>(null);
 	const [isCropping, setIsCropping] = useState(false);
+	const [isOptimizing, setIsOptimizing] = useState(false);
+	const [dimensions, setDimensions] = useState<{
+		width: number;
+		height: number;
+	} | null>(null);
 	const inputRef = useRef<HTMLInputElement | null>(null);
 	const previewUrlRef = useRef<string | null>(null);
 	const sourceUrlRef = useRef<string | null>(null);
 
 	const cropEnabled = typeof aspectRatio === "number";
+	const optimizeEnabled = optimize && !cropEnabled;
 	const resolvedHelpText =
-		helpText ?? (cropEnabled ? CROP_HELP_TEXT : DEFAULT_HELP_TEXT);
+		helpText ??
+		(cropEnabled
+			? CROP_HELP_TEXT
+			: optimizeEnabled
+				? OPTIMIZE_HELP_TEXT
+				: DEFAULT_HELP_TEXT);
 
 	useEffect(() => {
 		return () => {
@@ -149,26 +179,97 @@ export function ImageUploadField({
 		}
 	}
 
+	/**
+	 * Writes a re-encoded file back into the file input, which keeps the input the
+	 * single source of truth: the surrounding <form action={...}> and the Server
+	 * Action need no changes. Assigning `files` does not emit a change event, so
+	 * this cannot loop back into handleChange.
+	 *
+	 * Returns false on any browser that cannot do this, rather than throwing.
+	 * Three failures are possible and only one of them is silent: `DataTransfer`
+	 * may not be constructible, `input.files` may be read-only (a TypeError under
+	 * the strict mode modules already run in), or the assignment may be accepted
+	 * and do nothing. The first two raise, so the write is wrapped; the last is
+	 * what the length check below catches. Callers must report a false return:
+	 * silently, the admin would save the record with no image and no idea why.
+	 */
+	function writeFileToInput(file: File) {
+		const input = inputRef.current;
+
+		if (!input) {
+			return false;
+		}
+
+		try {
+			const transfer = new DataTransfer();
+			transfer.items.add(file);
+			input.files = transfer.files;
+		} catch {
+			return false;
+		}
+
+		return input.files?.length === 1;
+	}
+
+	async function optimizeSelection(input: HTMLInputElement, file: File) {
+		// Hold the original out of the input while it is re-encoded. Only the
+		// optimised file may ever be submitted: the original is what would
+		// overflow the Server Action body limit.
+		input.value = "";
+		replacePreview(null);
+		setDimensions(null);
+		setIsOptimizing(true);
+
+		try {
+			const encoded = await optimizeImageForGallery(file);
+
+			// Defence in depth. At the gallery's max edge and quality a photo lands
+			// far under the limit, so this only fires for something pathological.
+			if (encoded.file.size > MAX_IMAGE_SIZE_BYTES) {
+				setToast({ message: OVERSIZED_IMAGE_MESSAGE });
+				return;
+			}
+
+			if (!writeFileToInput(encoded.file)) {
+				setToast({ message: OPTIMIZE_IMAGE_FAILED_MESSAGE });
+				return;
+			}
+
+			setDimensions({ width: encoded.width, height: encoded.height });
+			replacePreview(URL.createObjectURL(encoded.file));
+		} catch {
+			setToast({ message: OPTIMIZE_IMAGE_FAILED_MESSAGE });
+		} finally {
+			setIsOptimizing(false);
+		}
+	}
+
 	function handleChange(event: ChangeEvent<HTMLInputElement>) {
-		const file = event.target.files?.[0];
+		const input = event.target;
+		const file = input.files?.[0];
 
 		if (!file) {
 			replacePreview(null);
+			setDimensions(null);
 			return;
 		}
 
-		// Without cropping the file is uploaded as-is, so it has to clear the
-		// Server Action body limit. Next.js rejects an oversized body before the
-		// action runs, which is why this can only be caught here.
-		const limit = cropEnabled
+		// A file that gets re-encoded in the browser never reaches the Server
+		// Action as-is, so it earns the high source ceiling. One uploaded untouched
+		// has to clear the body limit, and Next.js rejects an oversized body before
+		// the action runs, which is why that can only be caught here.
+		const willReencode =
+			cropEnabled || (optimizeEnabled && isOptimizableImageType(file.type));
+		const limit = willReencode
 			? MAX_SOURCE_IMAGE_SIZE_BYTES
 			: MAX_IMAGE_SIZE_BYTES;
 
 		if (file.size > limit) {
-			event.target.value = "";
+			input.value = "";
 			replacePreview(null);
+			setDimensions(null);
 			setToast({
-				message: cropEnabled
+				message: willReencode
 					? OVERSIZED_SOURCE_IMAGE_MESSAGE
 					: OVERSIZED_IMAGE_MESSAGE,
 			});
@@ -176,49 +277,40 @@ export function ImageUploadField({
 		}
 
 		setToast(null);
-		const url = URL.createObjectURL(file);
 
-		if (!cropEnabled) {
-			replacePreview(url);
+		if (cropEnabled) {
+			// Hold the original out of the input: only a confirmed crop goes back in.
+			const url = URL.createObjectURL(file);
+			input.value = "";
+			replacePreview(null);
+			replaceSourceUrl(url);
+			setCropSource({
+				url,
+				fileName: toCroppedFileName(file.name),
+				remote: false,
+			});
+			setIsCropping(true);
 			return;
 		}
 
-		// Hold the original out of the input: only a confirmed crop goes back in.
-		event.target.value = "";
-		replacePreview(null);
-		replaceSourceUrl(url);
-		setCropSource({
-			url,
-			fileName: toCroppedFileName(file.name),
-			remote: false,
-		});
-		setIsCropping(true);
+		if (optimizeEnabled && isOptimizableImageType(file.type)) {
+			void optimizeSelection(input, file);
+			return;
+		}
+
+		// Uploaded as-is: a caller with no optimisation, or an animated GIF, whose
+		// animation a canvas re-encode would flatten to its first frame.
+		setDimensions(null);
+		replacePreview(URL.createObjectURL(file));
 	}
 
 	function handleCropConfirm(file: File) {
-		const input = inputRef.current;
-
-		if (!input) {
-			return;
-		}
-
 		if (file.size > MAX_IMAGE_SIZE_BYTES) {
 			setToast({ message: OVERSIZED_IMAGE_MESSAGE });
 			return;
 		}
 
-		// Writing to `input.files` keeps this file input the single source of
-		// truth, so the surrounding <form action={...}> and the Server Action need
-		// no changes. Assigning files does not emit a change event, so this cannot
-		// loop back into handleChange.
-		const transfer = new DataTransfer();
-		transfer.items.add(file);
-		input.files = transfer.files;
-
-		// Assigning `files` is a no-op on browsers without DataTransfer support.
-		// Failing loudly matters here: silently, the admin would save the record
-		// with no image and no idea why.
-		if (input.files?.length !== 1) {
+		if (!writeFileToInput(file)) {
 			setToast({ message: ATTACH_CROP_FAILED_MESSAGE });
 			return;
 		}
@@ -261,6 +353,17 @@ export function ImageUploadField({
 		<div className="space-y-2">
 			<label className="text-sm font-medium">{label}</label>
 			<input type="hidden" name="existing_image_url" value={existingUrl ?? ""} />
+			{/*
+			 * Only rendered once an encode has produced real dimensions. Their
+			 * absence is meaningful to the update action: it means this submission
+			 * carries no new image, so the stored dimensions must be left alone.
+			 */}
+			{dimensions ? (
+				<>
+					<input type="hidden" name="image_width" value={dimensions.width} />
+					<input type="hidden" name="image_height" value={dimensions.height} />
+				</>
+			) : null}
 			<div className="rounded-xl border-[1.5px] border-dashed border-[#d5dae1] bg-[#fbfcfd] p-3.5">
 				{/*
 				 * The file <Input> stays at a fixed position in the tree (the second
@@ -301,11 +404,29 @@ export function ImageUploadField({
 							type="file"
 							name={name}
 							accept={ACCEPTED_IMAGE_MIME_TYPES}
-							required={required && !existingUrl}
+							/*
+							 * Required while an encode is in flight, even when editing. The
+							 * input is deliberately empty until the encoded file is written
+							 * back, so this makes the browser block a premature submit
+							 * instead of letting it through: on an edit there is no other
+							 * guard, and the record would save with the previous image and no
+							 * indication that the new one never made it.
+							 */
+							required={(required && !existingUrl) || isOptimizing}
 							onChange={handleChange}
 							className={FILE_INPUT_CLASSNAME}
 						/>
 						<p className="text-xs text-muted-foreground">{resolvedHelpText}</p>
+						{/*
+						 * The encode is async and the submit button lives outside this
+						 * field, so this is what tells the admin not to save yet. Until
+						 * the preview appears the input is deliberately empty.
+						 */}
+						{isOptimizing ? (
+							<p role="status" className="text-xs font-medium text-[#9a6b00]">
+								Optimizando la imagen… esperá la vista previa antes de guardar.
+							</p>
+						) : null}
 						{canCropExisting || canRecropSource ? (
 							<Button
 								type="button"

@@ -16,10 +16,6 @@ describe("GallerySection styling parity", () => {
 		expect(componentSource).toContain('from "motion/react"');
 		expect(componentSource).toContain("AnimatePresence");
 		expect(componentSource).toContain("motion.div");
-		expect(componentSource).toContain("GALLERY_VISIBLE_INCREMENT = 20");
-		expect(componentSource).toContain("visibleItems");
-		expect(componentSource).toContain("hasMoreItems");
-		expect(componentSource).toContain("Ver más");
 		expect(componentSource).toContain("rounded-lg");
 		expect(componentSource).toContain("bg-[#ff7e2e] text-white");
 		expect(componentSource).toContain("hover:bg-[#ff7e2e] hover:text-white");
@@ -33,11 +29,56 @@ describe("GallerySection styling parity", () => {
 		expect(componentSource).toContain("normal-case");
 		expect(componentSource).toContain("object-contain");
 		expect(componentSource).toContain("h-auto");
-		expect(componentSource).toContain("width={640}");
-		expect(componentSource).toContain("height={480}");
 		expect(componentSource).not.toContain("aspect-square");
 		expect(componentSource).not.toContain("object-cover");
 		expect(componentSource).not.toContain("rounded shadow-sm");
 		expect(componentSource).not.toContain("bg-primary/95");
+	});
+
+	// Replaces the former `GALLERY_VISIBLE_INCREMENT` / `Ver más` assertions. The
+	// section pages instead of accumulating, so its height no longer grows with
+	// the number of loaded photos, and nothing here may reintroduce that.
+	it("pages the grid instead of accumulating visible items", () => {
+		const componentSource = readProjectFile(
+			"src/components/sections/GallerySection.tsx",
+		);
+
+		expect(componentSource).toContain('from "@/lib/gallery-pagination"');
+		expect(componentSource).toContain("getPageItems");
+		expect(componentSource).toContain("Página {currentPage + 1} de {pageCount}");
+		expect(componentSource).not.toContain("Ver más");
+		expect(componentSource).not.toContain("visibleCount");
+		expect(componentSource).not.toContain("hasMoreItems");
+	});
+
+	// The hardcoded 640x480 hint was applied to every photo regardless of its real
+	// shape, which is what made the section jump as images decoded.
+	it("reserves each preview's box from its stored dimensions", () => {
+		const componentSource = readProjectFile(
+			"src/components/sections/GallerySection.tsx",
+		);
+
+		expect(componentSource).toContain("width={item.width ?? FALLBACK_IMAGE_WIDTH}");
+		expect(componentSource).toContain(
+			"height={item.height ?? FALLBACK_IMAGE_HEIGHT}",
+		);
+		expect(componentSource).not.toContain("width={640}");
+		expect(componentSource).not.toContain("height={480}");
+	});
+
+	// Paging must not shrink the lightbox: it walks the filtered collection so a
+	// visitor can still reach every photo without clicking through pages.
+	it("navigates the lightbox across the whole filtered collection", () => {
+		const componentSource = readProjectFile(
+			"src/components/sections/GallerySection.tsx",
+		);
+
+		expect(componentSource).toContain(
+			"nextLightboxPosition(selectedItemIndex, filteredCount",
+		);
+		expect(componentSource).toContain("setPage(next.page)");
+		expect(componentSource).toContain(
+			"{selectedItemIndex + 1} de {filteredCount}",
+		);
 	});
 });

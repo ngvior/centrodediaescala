@@ -30,7 +30,12 @@ vi.mock("@/lib/supabase/server", () => ({
 	createClient: apiMocks.createClient,
 }));
 
-import { getActivities, getProfessionals, getSiteSettings } from "./index";
+import {
+	getActivities,
+	getGalleryItems,
+	getProfessionals,
+	getSiteSettings,
+} from "./index";
 
 describe("public data API", () => {
 	beforeEach(() => {
@@ -196,5 +201,121 @@ describe("public data API", () => {
 		expect(queries[0].select).toHaveBeenCalledWith(
 			"id, title, description, category, icon, image_url, schedule_info",
 		);
+	});
+
+	// The public gallery pages client-side over this single response, so what this
+	// query returns first is literally what a visitor lands on.
+	it("reads active gallery items newest first, carrying their stored dimensions", async () => {
+		const { client, queries } = createSupabaseClientMock([
+			{
+				table: "gallery_items",
+				response: {
+					data: [
+						{
+							id: "gallery-from-db",
+							title: "Patio",
+							category: "Espacios",
+							category_id: null,
+							image_url: "/patio.webp",
+							width: 2048,
+							height: 1536,
+							gallery_categories: null,
+						},
+					],
+					error: null,
+				},
+			},
+		]);
+		apiMocks.createClient.mockResolvedValue(client);
+
+		await expect(getGalleryItems()).resolves.toEqual([
+			expect.objectContaining({
+				id: "gallery-from-db",
+				width: 2048,
+				height: 1536,
+			}),
+		]);
+
+		expect(client.from).toHaveBeenCalledWith("gallery_items");
+		// Without width and height the public grid cannot reserve a preview's box
+		// and the section shifts as photos decode. The embedded category carries no
+		// `!inner` on purpose — see the LEFT-join test below.
+		expect(queries[0].select).toHaveBeenCalledWith(
+			"id, title, category, category_id, image_url, width, height, gallery_categories(name, is_active)",
+		);
+		expect(queries[0].eq).toHaveBeenCalledWith("is_active", true);
+		expect(queries[0].order).toHaveBeenCalledWith("order_index", {
+			ascending: false,
+		});
+		// `order_index` is not unique, so the tiebreaker is what keeps the public
+		// order stable across requests and aligned with the admin listing.
+		expect(queries[0].order).toHaveBeenCalledWith("title", {
+			ascending: true,
+		});
+	});
+
+	// The three states a row can be in while the gallery migrates to managed
+	// categories. An `!inner` join would return only the first of them, so this
+	// is the test that fails if the embed ever gains one.
+	it("keeps unbound and hidden-category photos in the gallery alongside bound ones", async () => {
+		const { client } = createSupabaseClientMock([
+			{
+				table: "gallery_items",
+				response: {
+					data: [
+						{
+							id: "bound-active",
+							title: "Natación",
+							category: "deporte",
+							category_id: "category-1",
+							image_url: "/galeria/2.jpg",
+							width: 2048,
+							height: 1536,
+							gallery_categories: { name: "Deporte", is_active: true },
+						},
+						{
+							id: "bound-inactive",
+							title: "Serigrafía",
+							category: "Terapias Ocupacionales",
+							category_id: "category-2",
+							image_url: "/galeria/14.jpg",
+							width: null,
+							height: null,
+							gallery_categories: null,
+						},
+						{
+							id: "unbound",
+							title: "Categoria drifted",
+							category: "Categoria",
+							category_id: null,
+							image_url: "/galeria/99.jpg",
+							width: null,
+							height: null,
+							gallery_categories: null,
+						},
+					],
+					error: null,
+				},
+			},
+		]);
+		apiMocks.createClient.mockResolvedValue(client);
+
+		await expect(getGalleryItems()).resolves.toEqual([
+			expect.objectContaining({
+				id: "bound-active",
+				category: "Deporte",
+				category_id: "category-1",
+			}),
+			expect.objectContaining({
+				id: "bound-inactive",
+				category: "Terapias Ocupacionales",
+				category_id: "category-2",
+			}),
+			expect.objectContaining({
+				id: "unbound",
+				category: "Categoria",
+				category_id: null,
+			}),
+		]);
 	});
 });

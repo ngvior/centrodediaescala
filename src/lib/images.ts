@@ -56,6 +56,48 @@ export const CROP_OUTPUT_MAX_EDGE = 512;
 export const CROP_OUTPUT_MIME = "image/jpeg";
 export const CROP_OUTPUT_QUALITY = 0.9;
 
+/**
+ * Longest edge of a gallery upload after the browser re-encodes it.
+ *
+ * Sized from the largest candidate `next/image` will ever request for this
+ * section. The lightbox declares `sizes="(min-width: 1200px) 1200px, 90vw"`, so
+ * on a 2x display the browser picks the 2048-wide candidate; the grid, at 25vw,
+ * asks for far less. 2048 is therefore the ceiling of what is actually fetched,
+ * not headroom above it. Storing more buys nothing — every request is
+ * re-optimised server-side and the surplus pixels are discarded.
+ */
+export const GALLERY_OUTPUT_MAX_EDGE = 2048;
+
+/**
+ * WEBP rather than the cropper's JPEG for two reasons: it keeps alpha, so a PNG
+ * with transparency does not gain a black background, and it is smaller at the
+ * same visual quality.
+ */
+export const GALLERY_OUTPUT_MIME = "image/webp";
+
+/**
+ * Deliberately high. This encode is only the first generation — `next/image`
+ * re-encodes everything it serves at quality 75 (`images.qualities` defaults to
+ * `[75]` in Next 16 and next.config.ts does not widen it). Keeping generation
+ * one near-transparent leaves the visible quality decided by that second pass,
+ * exactly as it is for any other image on the site.
+ */
+export const GALLERY_OUTPUT_QUALITY = 0.9;
+
+export const OPTIMIZE_IMAGE_FAILED_MESSAGE =
+	"No se pudo procesar la imagen. Probá con otro navegador o con un archivo más liviano.";
+
+/**
+ * GIF is excluded on purpose: a canvas re-encode keeps only the first frame, so
+ * optimising an animated GIF would silently drop its animation. Those stay on
+ * the plain upload path and keep the MAX_IMAGE_SIZE_BYTES ceiling.
+ */
+export function isOptimizableImageType(mimeType: string): boolean {
+	return (
+		ALLOWED_IMAGE_MIME_TYPES.includes(mimeType) && mimeType !== "image/gif"
+	);
+}
+
 export type CropArea = {
 	x: number;
 	y: number;
@@ -102,4 +144,23 @@ export function planCropDraw(
 		canvasWidth: Math.max(Math.round(width * scale), 1),
 		canvasHeight: Math.max(Math.round(height * scale), 1),
 	};
+}
+
+/**
+ * Plan for re-encoding a whole image at a smaller size — a resize, not a crop.
+ *
+ * Delegates to `planCropDraw` with the full frame as the selection, which is
+ * exactly what a downscale is: same clamping, same ratio preservation, same
+ * refusal to upscale. Naming it separately matters because the callers mean
+ * different things — the cropper discards pixels, this one keeps all of them.
+ */
+export function planFullFrameResize(
+	image: { width: number; height: number },
+	maxEdge: number = GALLERY_OUTPUT_MAX_EDGE,
+): CropDrawPlan {
+	return planCropDraw(
+		{ x: 0, y: 0, width: image.width, height: image.height },
+		image,
+		maxEdge,
+	);
 }

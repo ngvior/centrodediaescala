@@ -72,11 +72,32 @@ CREATE TABLE IF NOT EXISTS public.home_objectives (
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
+-- Declared before gallery_items so the inline REFERENCES below resolves when a
+-- fresh environment runs this file top to bottom.
+CREATE TABLE IF NOT EXISTS public.gallery_categories (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  order_index INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
 CREATE TABLE IF NOT EXISTS public.gallery_items (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   title TEXT NOT NULL,
-  category TEXT NOT NULL,
+  -- Legacy free text. Still written on every create and update, but no longer
+  -- required: category_id carries the meaning once a row is bound, and the
+  -- public read falls back to this text for rows that are not.
+  category TEXT,
+  -- RESTRICT: deleting a category that still has photos is refused rather than
+  -- silently unbinding them.
+  category_id UUID REFERENCES public.gallery_categories(id) ON DELETE RESTRICT,
   image_url TEXT NOT NULL UNIQUE,
+  -- Dimensions of the stored image, captured by the browser when it re-encodes
+  -- the upload. Nullable: rows created before this existed keep them empty and
+  -- the public grid falls back to a nominal box for those.
+  width INTEGER,
+  height INTEGER,
   is_active BOOLEAN NOT NULL DEFAULT true,
   order_index INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now())
@@ -92,6 +113,47 @@ CREATE TABLE IF NOT EXISTS public.interview_rate_limits (
   CONSTRAINT interview_rate_limits_ip_window_key UNIQUE (ip_hash, window_start)
 );
 
+-- Changes to a table that already exists.
+--
+-- Every CREATE TABLE above is `IF NOT EXISTS`, so a column added inside one of
+-- those blocks reaches a fresh environment and NEVER reaches a database that is
+-- already running: the statement is skipped whole. Columns added after the
+-- initial release therefore have to be declared twice — inside the CREATE for a
+-- new environment, and as an idempotent ALTER here for the live ones, where it
+-- is a no-op once applied.
+--
+-- Keep both in sync. Only the CREATE, and a data-only dump restored into a fresh
+-- project fails on the missing column; only the ALTER, and a brand new
+-- environment never gets it.
+ALTER TABLE public.gallery_items ADD COLUMN IF NOT EXISTS width INTEGER;
+ALTER TABLE public.gallery_items ADD COLUMN IF NOT EXISTS height INTEGER;
+ALTER TABLE public.gallery_items
+  ADD COLUMN IF NOT EXISTS category_id UUID REFERENCES public.gallery_categories(id) ON DELETE RESTRICT;
+-- No-op once the column is already nullable. Backfilling category_id from the
+-- legacy text is NOT done here: schema.sql is structure only, and the one-off
+-- data move lives in supabase/migrations/20260805000000_gallery_categories.sql.
+ALTER TABLE public.gallery_items ALTER COLUMN category DROP NOT NULL;
+
+-- Postgres has no ADD CONSTRAINT IF NOT EXISTS, hence the guard. Unknown is
+-- allowed (the column is nullable), zero and negative are not: the admin action
+-- rejects them, but `service_role` writes to this table directly, so the rule
+-- belongs in the schema too.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'gallery_items_dimensions_positive'
+      AND conrelid = 'public.gallery_items'::regclass
+  ) THEN
+    ALTER TABLE public.gallery_items
+      ADD CONSTRAINT gallery_items_dimensions_positive
+      CHECK (
+        (width IS NULL OR width > 0)
+        AND (height IS NULL OR height > 0)
+      );
+  END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS professionals_active_order_idx ON public.professionals (is_active, order_index);
 CREATE INDEX IF NOT EXISTS activities_active_order_idx ON public.activities (is_active, order_index);
 CREATE INDEX IF NOT EXISTS events_published_created_idx ON public.events (is_published, created_at DESC);
@@ -99,6 +161,11 @@ CREATE INDEX IF NOT EXISTS interview_requests_status_created_idx ON public.inter
 CREATE INDEX IF NOT EXISTS site_settings_key_idx ON public.site_settings (setting_key);
 CREATE INDEX IF NOT EXISTS home_objectives_active_order_idx ON public.home_objectives (is_active, order_index);
 CREATE INDEX IF NOT EXISTS gallery_items_active_order_idx ON public.gallery_items (is_active, order_index);
+CREATE INDEX IF NOT EXISTS gallery_items_category_id_idx ON public.gallery_items (category_id);
+-- Case-insensitive uniqueness for category names, enforced by the database so
+-- `deporte` cannot be created next to `Deporte`.
+CREATE UNIQUE INDEX IF NOT EXISTS gallery_categories_name_lower_key ON public.gallery_categories (lower(name));
+CREATE INDEX IF NOT EXISTS gallery_categories_active_order_idx ON public.gallery_categories (is_active, order_index);
 CREATE INDEX IF NOT EXISTS interview_rate_limits_ip_window_idx ON public.interview_rate_limits (ip_hash, window_start DESC);
 
 ALTER TABLE public.professionals ENABLE ROW LEVEL SECURITY;
@@ -107,6 +174,7 @@ ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.site_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.home_objectives ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.gallery_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.gallery_categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.interview_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.interview_rate_limits ENABLE ROW LEVEL SECURITY;
 
@@ -150,6 +218,17 @@ CREATE POLICY "Public read access for gallery_items"
   TO anon, authenticated
   USING (is_active = true);
 
+-- Read-only for visitors, and only the active rows. An inactive category is
+-- therefore invisible to anon, which makes its embedded object come back absent
+-- on the public join rather than as a hidden name; the reader falls back to the
+-- item's legacy text. Application code filters is_active explicitly as well
+-- rather than relying on this policy alone.
+DROP POLICY IF EXISTS "Public read access for gallery_categories" ON public.gallery_categories;
+CREATE POLICY "Public read access for gallery_categories"
+  ON public.gallery_categories FOR SELECT
+  TO anon, authenticated
+  USING (is_active = true);
+
 -- No anon/authenticated policies are defined for interview_requests or
 -- interview_rate_limits. Browser/Data API inserts are denied by missing grants
 -- and by RLS; future Server Actions write with the server-only service role.
@@ -164,6 +243,7 @@ REVOKE ALL ON TABLE public.events FROM anon, authenticated;
 REVOKE ALL ON TABLE public.site_settings FROM anon, authenticated;
 REVOKE ALL ON TABLE public.home_objectives FROM anon, authenticated;
 REVOKE ALL ON TABLE public.gallery_items FROM anon, authenticated;
+REVOKE ALL ON TABLE public.gallery_categories FROM anon, authenticated;
 REVOKE ALL ON TABLE public.interview_requests FROM anon, authenticated;
 REVOKE ALL ON TABLE public.interview_rate_limits FROM anon, authenticated;
 
@@ -173,6 +253,7 @@ GRANT SELECT ON TABLE public.events TO anon, authenticated;
 GRANT SELECT ON TABLE public.site_settings TO anon, authenticated;
 GRANT SELECT ON TABLE public.home_objectives TO anon, authenticated;
 GRANT SELECT ON TABLE public.gallery_items TO anon, authenticated;
+GRANT SELECT ON TABLE public.gallery_categories TO anon, authenticated;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.professionals TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.activities TO service_role;
@@ -180,6 +261,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.events TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.site_settings TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.home_objectives TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.gallery_items TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.gallery_categories TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.interview_requests TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.interview_rate_limits TO service_role;
 
