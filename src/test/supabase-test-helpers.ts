@@ -7,6 +7,12 @@ import {
 
 export type SupabaseTestError = {
 	message: string;
+	/**
+	 * The SQLSTATE PostgrestError carries. Optional because most fixtures only
+	 * need a message, but writers that map a specific failure — a duplicate
+	 * category name is `23505` — match on this and never on the message text.
+	 */
+	code?: string;
 };
 
 export type SupabaseTestResponse<T = unknown> = {

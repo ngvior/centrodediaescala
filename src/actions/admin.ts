@@ -4,6 +4,10 @@ import { revalidatePath } from "next/cache";
 
 import { requireAdmin } from "@/lib/auth/admin";
 import {
+	mapCategoryNameError,
+	type CategoryCascadeMode,
+} from "@/lib/gallery-category-admin";
+import {
 	buildAdminSiteSettings,
 	getSiteSettingDefinition,
 	normalizeSiteSettingValue,
@@ -11,7 +15,7 @@ import {
 	type SiteSettingRow,
 } from "@/lib/site-settings";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { uploadImage, deleteImage } from "@/lib/supabase/storage";
+import { uploadImage, deleteImage, deleteImages } from "@/lib/supabase/storage";
 
 export type AdminProfessional = {
 	id: string;
@@ -39,14 +43,41 @@ export type AdminActivity = {
 export type AdminGalleryItem = {
 	id: string;
 	title: string;
-	category: string;
 	/**
-	 * The gallery_categories record this photo is bound to, null while it is
-	 * still described only by its legacy text. Read but not yet edited: the admin
-	 * category picker arrives in a later change.
+	 * The legacy free text, null when the photo is bound to no category. The
+	 * column has been nullable since categories arrived, and the item writers now
+	 * produce null for `Sin categoría`, so the admin table renders that case
+	 * rather than assuming a string.
 	 */
+	category: string | null;
+	/** The gallery_categories record this photo is bound to, null when unbound. */
 	category_id: string | null;
 	image_url: string;
+	is_active: boolean;
+	/**
+	 * True when this photo was hidden by its category being deactivated, rather
+	 * than by an administrator hiding it deliberately. Reactivating that category
+	 * republishes exactly the marked rows, so a hand-hidden photo stays hidden.
+	 *
+	 * Admin-only on purpose: the public `GalleryItem` shape does NOT carry this,
+	 * because the public read already filters `is_active = true` and a marked row
+	 * can never reach it. Neither shape is generated from the database, so the
+	 * asymmetry is deliberate rather than an oversight to "fix".
+	 */
+	hidden_by_category: boolean;
+	order_index: number;
+};
+
+/**
+ * A category row as the admin screen needs it — every row, active or not,
+ * because the administrator manages both. No bound-item count is read here: the
+ * counts come from `countItemsByCategory()` over the item list the page already
+ * fetched, so the chip count, the visible table, and the warning dialog's `{n}`
+ * cannot disagree with one another.
+ */
+export type AdminGalleryCategory = {
+	id: string;
+	name: string;
 	is_active: boolean;
 	order_index: number;
 };
@@ -369,6 +400,10 @@ async function getNextOrderIndex(
  * visual order. Gallery lists newest-first ("desc", see getAdminGalleryItems);
  * the other three list oldest-first ("asc"). Flipping a listing's ORDER BY
  * without flipping its entry here inverts the whole list on the next save.
+ *
+ * `gallery_categories` is deliberately absent: category order is not editable,
+ * so no reorder writer exists for it. Adding an entry without a matching drag
+ * surface would be a reorder path nothing calls.
  */
 const REORDERABLE_TABLES = {
 	professionals: { revalidate: revalidateProfessionalPaths, listing: "asc" },
@@ -490,13 +525,45 @@ export async function getAdminGalleryItems(): Promise<AdminGalleryItem[]> {
 	// public gallery and the client can see what a visitor lands on.
 	const response = await supabase
 		.from("gallery_items")
-		.select("id, title, category, category_id, image_url, is_active, order_index")
+		.select(
+			"id, title, category, category_id, image_url, is_active, hidden_by_category, order_index",
+		)
 		.order("order_index", { ascending: false })
 		.order("title", { ascending: true });
 
 	return assertReadSucceeded(
 		"gallery_items",
 		response as SupabaseResponse<AdminGalleryItem[]>,
+	);
+}
+
+/**
+ * Every category, active and inactive: the admin screen manages both, and an
+ * inactive one still has to be reachable to be renamed, reactivated, or deleted.
+ *
+ * No embedded count and no join. The bound-item counts are derived in the client
+ * from the item list this page already fetches, so the number beside a category,
+ * the rows the table shows, and the number the warning dialog quotes all come
+ * from one snapshot and cannot disagree.
+ *
+ * The secondary sort by name only breaks ties: `order_index` is not editable for
+ * categories yet, so newly created rows can share one.
+ */
+export async function getAdminGalleryCategories(): Promise<
+	AdminGalleryCategory[]
+> {
+	await requireAdmin();
+
+	const supabase = createAdminClient();
+	const response = await supabase
+		.from("gallery_categories")
+		.select("id, name, is_active, order_index")
+		.order("order_index", { ascending: true })
+		.order("name", { ascending: true });
+
+	return assertReadSucceeded(
+		"gallery_categories",
+		response as SupabaseResponse<AdminGalleryCategory[]>,
 	);
 }
 
@@ -1041,6 +1108,48 @@ export async function deleteActivity(formData: FormData) {
 	revalidateActivityPaths();
 }
 
+/**
+ * The category columns a gallery item write should store, derived from the id
+ * the form picked.
+ *
+ * The legacy text is looked up server-side rather than submitted alongside the
+ * id: a client can send any pair it likes, and two columns that are supposed to
+ * agree must not depend on it telling the truth. `Sin categoría` clears both.
+ *
+ * A picked id that no longer exists is the administrator's problem to see, not
+ * something to bind as garbage — hence a plain `Error` carrying a message the
+ * form can show.
+ */
+async function resolveItemCategory(
+	supabase: ReturnType<typeof createAdminClient>,
+	formData: FormData,
+): Promise<{ category_id: string | null; category: string | null }> {
+	const categoryId = getOptionalString(formData, "category_id");
+
+	if (!categoryId) {
+		return { category_id: null, category: null };
+	}
+
+	const response = (await supabase
+		.from("gallery_categories")
+		.select("name")
+		.eq("id", categoryId)
+		.maybeSingle()) as SupabaseResponse<{ name: string }>;
+
+	if (response.error) {
+		throw new AdminInfraError(
+			"admin read failed for gallery_categories",
+			response.error.message,
+		);
+	}
+
+	if (!response.data) {
+		throw new Error(MISSING_CATEGORY_MESSAGE);
+	}
+
+	return { category_id: categoryId, category: response.data.name };
+}
+
 export async function createGalleryItem(
 	_prevState: ActionResult,
 	formData: FormData,
@@ -1059,10 +1168,11 @@ export async function createGalleryItem(
 		}
 
 		const supabase = createAdminClient();
+		const category = await resolveItemCategory(supabase, formData);
 		const orderIndex = await getNextOrderIndex(supabase, "gallery_items");
 		const payload = {
 			title: getRequiredString(formData, "title"),
-			category: getRequiredString(formData, "category"),
+			...category,
 			image_url: imageUrl,
 			is_active: getCheckboxBoolean(formData, "is_active", true),
 			order_index: orderIndex,
@@ -1104,11 +1214,19 @@ export async function updateGalleryItem(
 			imageUrl = await uploadImage(file, "gallery");
 		}
 
+		const supabase = createAdminClient();
+		const category = await resolveItemCategory(supabase, formData);
+		const isActive = getCheckboxBoolean(formData, "is_active");
 		const payload = {
 			title: getRequiredString(formData, "title"),
-			category: getRequiredString(formData, "category"),
+			...category,
 			image_url: imageUrl,
-			is_active: getCheckboxBoolean(formData, "is_active"),
+			is_active: isActive,
+			// Making a photo visible by hand ends its life as a restore candidate:
+			// the marker records that a category deactivation hid it, and that is no
+			// longer the state it is in. Clearing it in the same write is what stops
+			// the marker outliving what it describes.
+			...(isActive ? { hidden_by_category: false } : {}),
 			// Dimensions are only touched when the image itself is replaced, and then
 			// they are always rewritten — to null if the browser produced none. Left
 			// alone, they would describe the new image with the old one's numbers and
@@ -1121,7 +1239,6 @@ export async function updateGalleryItem(
 				: {}),
 		};
 
-		const supabase = createAdminClient();
 		const { error } = await supabase
 			.from("gallery_items")
 			.update(payload)
@@ -1154,7 +1271,12 @@ export async function toggleGalleryItem(formData: FormData) {
 	const supabase = createAdminClient();
 	const { error } = await supabase
 		.from("gallery_items")
-		.update({ is_active: isActive })
+		.update({
+			is_active: isActive,
+			// Same rule as updateGalleryItem: a hand-activated photo stops being a
+			// restore candidate, so the marker goes with the write that activates it.
+			...(isActive ? { hidden_by_category: false } : {}),
+		})
 		.eq("id", id);
 
 	assertMutationSucceeded("gallery_items", error);
@@ -1181,6 +1303,287 @@ export async function deleteGalleryItem(formData: FormData) {
 	if (itemData?.image_url) {
 		await deleteImage(itemData.image_url);
 	}
+
+	revalidateGalleryPaths();
+}
+
+/**
+ * Shown when the category a form names is gone — deleted in another tab between
+ * opening the form and submitting it. Reloading is the only fix available to the
+ * administrator, so the message says so.
+ */
+const MISSING_CATEGORY_MESSAGE =
+	"La categoría seleccionada ya no existe. Actualizá la página.";
+
+/**
+ * Raises the administrator's message for a duplicate category name, and the
+ * generic infrastructure error for everything else.
+ *
+ * A plain `Error` rather than an `AdminInfraError`, so `toActionError` surfaces
+ * the Spanish text verbatim as a form message. Anything unmapped stays an
+ * infrastructure error and is logged server-side instead of reaching the browser.
+ */
+function assertCategoryWriteSucceeded(
+	error: { message: string; code?: string | null } | null,
+) {
+	if (!error) {
+		return;
+	}
+
+	const message = mapCategoryNameError(error);
+
+	if (message) {
+		throw new Error(message);
+	}
+
+	assertMutationSucceeded("gallery_categories", error);
+}
+
+/**
+ * Validates the keep/purge choice crossing the action boundary. Server-action
+ * arguments are untrusted at runtime whatever the TypeScript type says, and an
+ * unrecognised mode must fail rather than fall back to a default that silently
+ * deletes or silently keeps.
+ */
+function getCascadeMode(formData: FormData): CategoryCascadeMode {
+	const value = formData.get("mode");
+
+	if (value === "keep" || value === "purge") {
+		return value;
+	}
+
+	throw new Error(`Modo de cascada inválido: ${String(value)}`);
+}
+
+/**
+ * Makes visible again exactly the photos this category's deactivation hid, and
+ * clears their markers in the same write.
+ *
+ * `hidden_by_category = true` is the whole predicate that separates them from a
+ * photo the administrator hid by hand: that one never carries the marker, so it
+ * is never republished. Clearing the marker here is what makes a second
+ * reactivation a no-op.
+ */
+async function restoreCascadeHiddenItems(
+	supabase: ReturnType<typeof createAdminClient>,
+	categoryId: string,
+) {
+	const { error } = await supabase
+		.from("gallery_items")
+		.update({ is_active: true, hidden_by_category: false })
+		.eq("category_id", categoryId)
+		.eq("hidden_by_category", true);
+
+	assertMutationSucceeded("gallery_items", error);
+}
+
+export async function createGalleryCategory(
+	_prevState: ActionResult,
+	formData: FormData,
+): Promise<ActionResult> {
+	try {
+		await requireAdmin();
+
+		const name = getRequiredString(formData, "name");
+		const isActive = getCheckboxBoolean(formData, "is_active", true);
+
+		const supabase = createAdminClient();
+		const orderIndex = await getNextOrderIndex(supabase, "gallery_categories");
+		const { error } = await supabase.from("gallery_categories").insert({
+			name,
+			is_active: isActive,
+			order_index: orderIndex,
+		});
+
+		assertCategoryWriteSucceeded(error);
+		revalidateGalleryPaths();
+		return { status: "success" };
+	} catch (error) {
+		return toActionError(error);
+	}
+}
+
+/**
+ * Renames a category and applies its active switch.
+ *
+ * The current row is read first because only the transition decides whether the
+ * restore cascade runs. The modal's switch is a second door to the same
+ * inactive→active transition the chip toggle offers, so the restore lives in the
+ * writer rather than at either entry point — that way no door can leave markers
+ * stranded. active→inactive here is keep semantics deliberately: hiding photos
+ * is destructive enough to require the warning dialog, which goes through
+ * `setGalleryCategoryActive`.
+ */
+export async function updateGalleryCategory(
+	_prevState: ActionResult,
+	formData: FormData,
+): Promise<ActionResult> {
+	try {
+		await requireAdmin();
+
+		const id = getRequiredString(formData, "id");
+		const name = getRequiredString(formData, "name");
+		const isActive = getCheckboxBoolean(formData, "is_active");
+
+		const supabase = createAdminClient();
+		const currentResponse = (await supabase
+			.from("gallery_categories")
+			.select("is_active")
+			.eq("id", id)
+			.maybeSingle()) as SupabaseResponse<{ is_active: boolean }>;
+
+		if (currentResponse.error) {
+			throw new AdminInfraError(
+				"admin read failed for gallery_categories",
+				currentResponse.error.message,
+			);
+		}
+
+		if (!currentResponse.data) {
+			throw new Error(MISSING_CATEGORY_MESSAGE);
+		}
+
+		if (isActive && !currentResponse.data.is_active) {
+			await restoreCascadeHiddenItems(supabase, id);
+		}
+
+		const { error } = await supabase
+			.from("gallery_categories")
+			.update({ name, is_active: isActive })
+			.eq("id", id);
+
+		assertCategoryWriteSucceeded(error);
+		revalidateGalleryPaths();
+		return { status: "success" };
+	} catch (error) {
+		return toActionError(error);
+	}
+}
+
+/**
+ * Activates or deactivates a category, cascading to its photos on request.
+ *
+ * Write order is chosen so every partial state is one normal use already
+ * produces, and so a retry converges:
+ *
+ * - Deactivating writes the category first, then the items. Failing in between
+ *   leaves exactly the documented keep state.
+ * - Reactivating writes the items first, then the category. Failing in between
+ *   shows the restored photos under the catch-all chip only — what deactivate +
+ *   keep already produces — and re-running restores nothing and flips the flag.
+ *
+ * `mode` is read only when deactivating: reactivation asks no question and has
+ * no choice to make.
+ */
+export async function setGalleryCategoryActive(
+	formData: FormData,
+): Promise<void> {
+	await requireAdmin();
+
+	const id = getRequiredString(formData, "id");
+	const isActive = getCheckboxBoolean(formData, "is_active");
+	const supabase = createAdminClient();
+
+	if (isActive) {
+		await restoreCascadeHiddenItems(supabase, id);
+
+		const { error } = await supabase
+			.from("gallery_categories")
+			.update({ is_active: true })
+			.eq("id", id);
+
+		assertMutationSucceeded("gallery_categories", error);
+		revalidateGalleryPaths();
+		return;
+	}
+
+	const mode = getCascadeMode(formData);
+	const { error } = await supabase
+		.from("gallery_categories")
+		.update({ is_active: false })
+		.eq("id", id);
+
+	assertMutationSucceeded("gallery_categories", error);
+
+	if (mode === "purge") {
+		// `AND is_active = true` is the marker invariant. A photo the
+		// administrator already hid by hand is skipped, so it never acquires a
+		// marker and a later reactivation never republishes it.
+		const { error: itemsError } = await supabase
+			.from("gallery_items")
+			.update({ is_active: false, hidden_by_category: true })
+			.eq("category_id", id)
+			.eq("is_active", true);
+
+		assertMutationSucceeded("gallery_items", itemsError);
+	}
+
+	revalidateGalleryPaths();
+}
+
+/**
+ * Deletes a category, unbinding or deleting its photos first.
+ *
+ * The item reference is `ON DELETE RESTRICT`, so the category row cannot be
+ * deleted while anything still points at it: an unhandled cascade fails loudly
+ * instead of orphaning photos.
+ *
+ * Keep leaves the legacy text alone — it is the caption the public gallery
+ * renders, and an unbound photo has nothing else to show. Purge follows
+ * `deleteGalleryItem`'s order, rows before Storage objects: a leaked object is
+ * invisible, whereas a surviving row pointing at a deleted object is a broken
+ * image on the public site.
+ */
+export async function deleteGalleryCategory(formData: FormData): Promise<void> {
+	await requireAdmin();
+
+	const id = getRequiredString(formData, "id");
+	const mode = getCascadeMode(formData);
+	const supabase = createAdminClient();
+
+	if (mode === "keep") {
+		const { error: unbindError } = await supabase
+			.from("gallery_items")
+			.update({ category_id: null })
+			.eq("category_id", id);
+
+		assertMutationSucceeded("gallery_items", unbindError);
+
+		const { error } = await supabase
+			.from("gallery_categories")
+			.delete()
+			.eq("id", id);
+
+		assertMutationSucceeded("gallery_categories", error);
+		revalidateGalleryPaths();
+		return;
+	}
+
+	const boundResponse = (await supabase
+		.from("gallery_items")
+		.select("id, image_url")
+		.eq("category_id", id)) as SupabaseResponse<{ image_url: string }[]>;
+
+	const boundItems = assertReadSucceeded("gallery_items", boundResponse);
+
+	const { error: deleteItemsError } = await supabase
+		.from("gallery_items")
+		.delete()
+		.eq("category_id", id);
+
+	assertMutationSucceeded("gallery_items", deleteItemsError);
+
+	const { error } = await supabase
+		.from("gallery_categories")
+		.delete()
+		.eq("id", id);
+
+	assertMutationSucceeded("gallery_categories", error);
+
+	// Best effort, and last. Every database write above has already committed, so
+	// a Storage failure here leaves the data consistent and only leaks objects
+	// nothing references.
+	await deleteImages(boundItems.map((item) => item.image_url));
 
 	revalidateGalleryPaths();
 }

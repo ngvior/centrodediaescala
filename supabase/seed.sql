@@ -158,6 +158,20 @@ FROM public.gallery_categories gc
 WHERE gi.category IS NOT NULL
   AND lower(trim(gi.category)) = lower(trim(gc.name));
 
+-- One photo left in the state a category deactivation with purge produces:
+-- hidden, and marked as hidden BY that cascade. It exists so a fresh
+-- environment can exercise restore — deactivating and reactivating "Deporte"
+-- must republish exactly this row and nothing else.
+--
+-- Runs after the binding UPDATE above, and after the items INSERT whose
+-- ON CONFLICT resets is_active from EXCLUDED, so a re-seed re-establishes the
+-- fixture instead of quietly losing it. Pinned by image_url, the items table's
+-- own conflict key, so it always lands on the same row.
+UPDATE public.gallery_items
+SET is_active = false,
+    hidden_by_category = true
+WHERE image_url = '/galeria/2.jpg';
+
 INSERT INTO public.events (title, slug, content, event_date, cover_image_url, is_published) VALUES
 ('Caminata & Kermesse Anual', 'caminata-kermesse', 'El evento consistirá en la realización de la edición de Escala/Camina. La misma tiene como principal objetivo canalizar el acompañamiento de la sociedad, al tiempo que sensibiliza y contribuye a una sociedad más justa, equitativa, solidaria e inclusiva.', 'Octubre', '/camina/camina_main.jpg', true)
 ON CONFLICT (slug) DO UPDATE SET

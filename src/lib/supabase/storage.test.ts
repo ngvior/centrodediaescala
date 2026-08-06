@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ensureBucketExists, uploadImage, deleteImage } from "./storage";
+import {
+	ensureBucketExists,
+	uploadImage,
+	deleteImage,
+	deleteImages,
+} from "./storage";
 import {
 	MAX_IMAGE_SIZE_BYTES,
 	OVERSIZED_IMAGE_MESSAGE,
@@ -196,6 +201,68 @@ describe("Supabase Storage Helpers", () => {
 			expect(mockStorageRemove).toHaveBeenCalledWith([
 				"professionals/abc-123.png",
 			]);
+		});
+	});
+
+	describe("deleteImages", () => {
+		const BUCKET_PREFIX =
+			"https://mockproject.supabase.co/storage/v1/object/public/cms-images/";
+
+		it("removes every bucket-hosted path in a single call", async () => {
+			mockStorageRemove.mockResolvedValue({ data: [], error: null });
+
+			await deleteImages([
+				`${BUCKET_PREFIX}gallery/one.png`,
+				`${BUCKET_PREFIX}gallery/two.png`,
+				`${BUCKET_PREFIX}gallery/three.png`,
+			]);
+
+			// One request, not one per photo: purging a large category would
+			// otherwise issue a round trip per image.
+			expect(mockStorageRemove).toHaveBeenCalledTimes(1);
+			expect(mockStorageRemove).toHaveBeenCalledWith([
+				"gallery/one.png",
+				"gallery/two.png",
+				"gallery/three.png",
+			]);
+		});
+
+		// Same guard as deleteImage: a static path or another host is skipped, not
+		// turned into a delete against our bucket.
+		it("skips urls that are not hosted in our bucket", async () => {
+			mockStorageRemove.mockResolvedValue({ data: [], error: null });
+
+			await deleteImages([
+				"/galeria/1.jpg",
+				"https://external-host.com/photo.jpg",
+				null,
+				`${BUCKET_PREFIX}gallery/kept.png`,
+			]);
+
+			expect(mockStorageRemove).toHaveBeenCalledWith(["gallery/kept.png"]);
+		});
+
+		it.each([
+			["the list is empty", []],
+			["nothing in it is ours", ["/galeria/1.jpg", null]],
+		])("makes no request when %s", async (_case, urls) => {
+			await deleteImages(urls as readonly (string | null)[]);
+
+			expect(mockStorageRemove).not.toHaveBeenCalled();
+		});
+
+		// The rows these objects belonged to are already deleted by the time this
+		// runs, so a Storage failure must not surface: the database is consistent
+		// and no surviving row can point at a missing object.
+		it("ignores a failed removal rather than throwing", async () => {
+			mockStorageRemove.mockResolvedValue({
+				data: null,
+				error: { message: "Storage unavailable" },
+			});
+
+			await expect(
+				deleteImages([`${BUCKET_PREFIX}gallery/one.png`]),
+			).resolves.toBeUndefined();
 		});
 	});
 });

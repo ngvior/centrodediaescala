@@ -12,6 +12,7 @@ const actionMocks = vi.hoisted(() => ({
 	revalidatePath: vi.fn(),
 	uploadImage: vi.fn(),
 	deleteImage: vi.fn(),
+	deleteImages: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/admin", () => ({
@@ -25,6 +26,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 vi.mock("@/lib/supabase/storage", () => ({
 	uploadImage: actionMocks.uploadImage,
 	deleteImage: actionMocks.deleteImage,
+	deleteImages: actionMocks.deleteImages,
 }));
 
 vi.mock("next/cache", () => ({
@@ -33,10 +35,15 @@ vi.mock("next/cache", () => ({
 
 import {
 	createActivity,
+	createGalleryCategory,
 	createGalleryItem,
 	createProfessional,
 	deleteActivity,
+	deleteGalleryCategory,
 	deleteGalleryItem,
+	getAdminGalleryCategories,
+	setGalleryCategoryActive,
+	updateGalleryCategory,
 	deleteInterviewRequest,
 	deleteProfessional,
 	getAdminActivities,
@@ -120,6 +127,7 @@ describe("admin actions", () => {
 		actionMocks.revalidatePath.mockReset();
 		actionMocks.uploadImage.mockReset();
 		actionMocks.deleteImage.mockReset();
+		actionMocks.deleteImages.mockReset();
 		actionMocks.requireAdmin.mockResolvedValue({
 			id: "admin-user",
 			email: "admin@example.com",
@@ -243,11 +251,14 @@ describe("admin actions", () => {
 			actionMocks.createAdminClient.mock.invocationCallOrder[0],
 		);
 		expect(client.from).toHaveBeenCalledWith("gallery_items");
-		// A scalar read of the binding, with no embedded category: the admin list
-		// still labels photos by their legacy text, and joining here would cost a
-		// query for something nothing renders yet.
+		// A scalar read of the binding, with no embedded category: the categories
+		// arrive as their own list, and joining here would fetch the same handful of
+		// names once per photo.
+		//
+		// `hidden_by_category` is on the admin shape only. The public read filters
+		// `is_active = true`, so a marked row never reaches it.
 		expect(queries[0].select).toHaveBeenCalledWith(
-			"id, title, category, category_id, image_url, is_active, order_index",
+			"id, title, category, category_id, image_url, is_active, hidden_by_category, order_index",
 		);
 		expect(queries[0].order).toHaveBeenCalledWith("order_index", {
 			ascending: false,
@@ -852,7 +863,12 @@ describe("admin actions", () => {
 		expect(queries[0].update).toHaveBeenCalledWith(
 			expect.not.objectContaining({ order_index: expect.anything() }),
 		);
-		expect(queries[1].update).toHaveBeenCalledWith({ is_active: true });
+		// Activating a photo by hand clears the cascade marker in the same write,
+		// so a later category reactivation no longer treats it as one of its own.
+		expect(queries[1].update).toHaveBeenCalledWith({
+			is_active: true,
+			hidden_by_category: false,
+		});
 		expect(queries[2].select).toHaveBeenCalledWith("image_url");
 		expect(queries[3].delete).toHaveBeenCalledTimes(1);
 		expect(queries[3].eq).toHaveBeenCalledWith("id", "gallery-id");
@@ -885,6 +901,595 @@ describe("admin actions", () => {
 
 		expect(actionMocks.createAdminClient).not.toHaveBeenCalled();
 		expect(actionMocks.revalidatePath).not.toHaveBeenCalled();
+	});
+
+	// ── Gallery categories ────────────────────────────────────────────────────
+	//
+	// Every cascade below is asserted as an ORDER of writes, not only as a set.
+	// The mock's `from` is strictly sequential and throws when the table it is
+	// handed does not match the next declared query, so the declaration order in
+	// each `createSupabaseClientMock([...])` call IS the assertion that the
+	// writer touched the tables in that order.
+
+	it("reads every category, active and inactive, ordered by order_index", async () => {
+		const { client, queries } = createSupabaseClientMock([
+			{ table: "gallery_categories", response: { data: [], error: null } },
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+
+		await expect(getAdminGalleryCategories()).resolves.toEqual([]);
+
+		expect(actionMocks.requireAdmin.mock.invocationCallOrder[0]).toBeLessThan(
+			actionMocks.createAdminClient.mock.invocationCallOrder[0],
+		);
+		expect(queries[0].select).toHaveBeenCalledWith(
+			"id, name, is_active, order_index",
+		);
+		expect(queries[0].order).toHaveBeenCalledWith("order_index", {
+			ascending: true,
+		});
+		// No is_active filter: the admin manages inactive categories too, and one
+		// that could not be read could never be reactivated.
+		expect(queries[0].eq).not.toHaveBeenCalled();
+	});
+
+	it("creates a category at the next order index, active by default", async () => {
+		const { client, queries } = createSupabaseClientMock([
+			{
+				table: "gallery_categories",
+				response: { data: { order_index: 3 }, error: null },
+			},
+			{ table: "gallery_categories", response: { data: null, error: null } },
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+
+		await expect(
+			createGalleryCategory(IDLE_STATE, createFormData({ name: "Deporte" })),
+		).resolves.toEqual({ status: "success" });
+
+		expect(queries[1].insert).toHaveBeenCalledWith({
+			name: "Deporte",
+			is_active: true,
+			order_index: 4,
+		});
+		expect(actionMocks.revalidatePath).toHaveBeenCalledWith("/admin/galeria");
+		expect(actionMocks.revalidatePath).toHaveBeenCalledWith("/");
+	});
+
+	it("creates an inactive category when the switch is off", async () => {
+		const { client, queries } = createSupabaseClientMock([
+			{
+				table: "gallery_categories",
+				response: { data: { order_index: 0 }, error: null },
+			},
+			{ table: "gallery_categories", response: { data: null, error: null } },
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+
+		await expect(
+			createGalleryCategory(
+				IDLE_STATE,
+				createFormData({ name: "Deporte", is_active: "off" }),
+			),
+		).resolves.toEqual({ status: "success" });
+
+		expect(queries[1].insert).toHaveBeenCalledWith(
+			expect.objectContaining({ is_active: false }),
+		);
+	});
+
+	it("refuses a blank category name before touching the database", async () => {
+		await expect(
+			createGalleryCategory(IDLE_STATE, createFormData({ name: "   " })),
+		).resolves.toEqual({
+			status: "error",
+			message: "El campo name es obligatorio",
+		});
+
+		expect(actionMocks.createAdminClient).not.toHaveBeenCalled();
+		expect(actionMocks.revalidatePath).not.toHaveBeenCalled();
+	});
+
+	// The unique index on lower(name) is the authority; a pre-check SELECT would
+	// be racy. The administrator sees Spanish, never the Postgres detail.
+	it("reports a duplicate name in Spanish instead of a generic failure", async () => {
+		const { client } = createSupabaseClientMock([
+			{
+				table: "gallery_categories",
+				response: { data: { order_index: 0 }, error: null },
+			},
+			{
+				table: "gallery_categories",
+				response: {
+					data: null,
+					error: {
+						message:
+							'duplicate key value violates unique constraint "gallery_categories_name_lower_key"',
+						code: "23505",
+					},
+				},
+			},
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+
+		await expect(
+			createGalleryCategory(IDLE_STATE, createFormData({ name: "deporte" })),
+		).resolves.toEqual({
+			status: "error",
+			message: "Ya existe una categoría con ese nombre.",
+		});
+
+		expect(actionMocks.revalidatePath).not.toHaveBeenCalled();
+	});
+
+	it("keeps an unmapped category failure generic", async () => {
+		const { client } = createSupabaseClientMock([
+			{
+				table: "gallery_categories",
+				response: { data: { order_index: 0 }, error: null },
+			},
+			{
+				table: "gallery_categories",
+				response: {
+					data: null,
+					error: { message: "column gallery_categories.nombre does not exist" },
+				},
+			},
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+
+		const result = await createGalleryCategory(
+			IDLE_STATE,
+			createFormData({ name: "Deporte" }),
+		);
+
+		expect(result).toEqual({
+			status: "error",
+			message: "No se pudo guardar. Intentá nuevamente.",
+		});
+	});
+
+	it("renames a category without touching its photos", async () => {
+		const { client, queries } = createSupabaseClientMock([
+			{
+				table: "gallery_categories",
+				response: { data: { is_active: true }, error: null },
+			},
+			{ table: "gallery_categories", response: { data: null, error: null } },
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+
+		await expect(
+			updateGalleryCategory(
+				IDLE_STATE,
+				createFormData({
+					id: "category-deporte",
+					name: "Actividades Deportivas",
+					is_active: "on",
+				}),
+			),
+		).resolves.toEqual({ status: "success" });
+
+		expect(queries[1].update).toHaveBeenCalledWith({
+			name: "Actividades Deportivas",
+			is_active: true,
+		});
+		expect(actionMocks.revalidatePath).toHaveBeenCalledWith("/admin/galeria");
+	});
+
+	// D7: the modal switch is a second door to the same inactive→active
+	// transition the chip toggle offers, so it runs the same restore.
+	it("restores cascade-hidden photos when the modal switch reactivates a category", async () => {
+		const { client, queries } = createSupabaseClientMock([
+			{
+				table: "gallery_categories",
+				response: { data: { is_active: false }, error: null },
+			},
+			{ table: "gallery_items", response: { data: null, error: null } },
+			{ table: "gallery_categories", response: { data: null, error: null } },
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+
+		await expect(
+			updateGalleryCategory(
+				IDLE_STATE,
+				createFormData({
+					id: "category-deporte",
+					name: "Deporte",
+					is_active: "on",
+				}),
+			),
+		).resolves.toEqual({ status: "success" });
+
+		expect(queries[1].update).toHaveBeenCalledWith({
+			is_active: true,
+			hidden_by_category: false,
+		});
+		expect(queries[1].eq).toHaveBeenCalledWith(
+			"category_id",
+			"category-deporte",
+		);
+		// The marker is the whole predicate: a photo hidden by hand carries none
+		// and is therefore never republished.
+		expect(queries[1].eq).toHaveBeenCalledWith("hidden_by_category", true);
+		expect(queries[1].update.mock.invocationCallOrder[0]).toBeLessThan(
+			queries[2].update.mock.invocationCallOrder[0],
+		);
+	});
+
+	// Deactivating through the modal is keep semantics on purpose: hiding photos
+	// is destructive enough to require the warning dialog, which is a different
+	// entry point.
+	it("does not hide any photo when the modal switch deactivates a category", async () => {
+		const { client, queries } = createSupabaseClientMock([
+			{
+				table: "gallery_categories",
+				response: { data: { is_active: true }, error: null },
+			},
+			{ table: "gallery_categories", response: { data: null, error: null } },
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+
+		await expect(
+			updateGalleryCategory(
+				IDLE_STATE,
+				createFormData({ id: "category-deporte", name: "Deporte" }),
+			),
+		).resolves.toEqual({ status: "success" });
+
+		expect(queries[1].update).toHaveBeenCalledWith({
+			name: "Deporte",
+			is_active: false,
+		});
+		expect(client.from).not.toHaveBeenCalledWith("gallery_items");
+	});
+
+	it("reports a category deleted in another tab instead of writing nothing", async () => {
+		const { client } = createSupabaseClientMock([
+			{ table: "gallery_categories", response: { data: null, error: null } },
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+
+		await expect(
+			updateGalleryCategory(
+				IDLE_STATE,
+				createFormData({ id: "category-gone", name: "Deporte" }),
+			),
+		).resolves.toEqual({
+			status: "error",
+			message: "La categoría seleccionada ya no existe. Actualizá la página.",
+		});
+
+		expect(actionMocks.revalidatePath).not.toHaveBeenCalled();
+	});
+
+	// Category first, then the items: failing in between leaves exactly the
+	// documented deactivate+keep state, which a retry converges out of.
+	it("deactivates a category before hiding its photos, and marks only the visible ones", async () => {
+		const { client, queries } = createSupabaseClientMock([
+			{ table: "gallery_categories", response: { data: null, error: null } },
+			{ table: "gallery_items", response: { data: null, error: null } },
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+
+		await setGalleryCategoryActive(
+			createFormData({ id: "category-deporte", mode: "purge" }),
+		);
+
+		expect(queries[0].update).toHaveBeenCalledWith({ is_active: false });
+		expect(queries[1].update).toHaveBeenCalledWith({
+			is_active: false,
+			hidden_by_category: true,
+		});
+		expect(queries[1].eq).toHaveBeenCalledWith(
+			"category_id",
+			"category-deporte",
+		);
+		// The marker invariant. A photo the administrator already hid by hand is
+		// skipped here, so it never acquires a marker and reactivation never
+		// republishes it.
+		expect(queries[1].eq).toHaveBeenCalledWith("is_active", true);
+		expect(queries[0].update.mock.invocationCallOrder[0]).toBeLessThan(
+			queries[1].update.mock.invocationCallOrder[0],
+		);
+		expect(actionMocks.revalidatePath).toHaveBeenCalledWith("/admin/galeria");
+	});
+
+	it("leaves every photo alone when a category is deactivated with keep", async () => {
+		const { client, queries } = createSupabaseClientMock([
+			{ table: "gallery_categories", response: { data: null, error: null } },
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+
+		await setGalleryCategoryActive(
+			createFormData({ id: "category-deporte", mode: "keep" }),
+		);
+
+		expect(queries[0].update).toHaveBeenCalledWith({ is_active: false });
+		expect(client.from).not.toHaveBeenCalledWith("gallery_items");
+	});
+
+	// Items first, then the category: failing in between shows the restored
+	// photos under the catch-all chip only, which deactivate+keep already
+	// produces, and re-running converges.
+	it("restores photos before reactivating the category, asking for no mode", async () => {
+		const { client, queries } = createSupabaseClientMock([
+			{ table: "gallery_items", response: { data: null, error: null } },
+			{ table: "gallery_categories", response: { data: null, error: null } },
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+
+		await setGalleryCategoryActive(
+			createFormData({ id: "category-deporte", is_active: "on" }),
+		);
+
+		expect(queries[0].update).toHaveBeenCalledWith({
+			is_active: true,
+			hidden_by_category: false,
+		});
+		expect(queries[0].eq).toHaveBeenCalledWith("hidden_by_category", true);
+		expect(queries[1].update).toHaveBeenCalledWith({ is_active: true });
+		expect(queries[0].update.mock.invocationCallOrder[0]).toBeLessThan(
+			queries[1].update.mock.invocationCallOrder[0],
+		);
+	});
+
+	// An unrecognised choice must fail rather than fall back to a default that
+	// silently keeps or silently deletes.
+	it.each([
+		["missing", null],
+		["unrecognised", "borrar-todo"],
+	])("refuses a %s cascade mode", async (_case, mode) => {
+		await expect(
+			setGalleryCategoryActive(
+				createFormData({ id: "category-deporte", mode }),
+			),
+		).rejects.toThrow("Modo de cascada inválido");
+
+		expect(actionMocks.revalidatePath).not.toHaveBeenCalled();
+	});
+
+	it("unbinds photos before deleting a category with keep, leaving their legacy text", async () => {
+		const { client, queries } = createSupabaseClientMock([
+			{ table: "gallery_items", response: { data: null, error: null } },
+			{ table: "gallery_categories", response: { data: null, error: null } },
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+
+		await deleteGalleryCategory(
+			createFormData({ id: "category-deporte", mode: "keep" }),
+		);
+
+		// category_id only. The legacy text is the caption the public gallery
+		// renders, and an unbound photo has nothing else to show.
+		expect(queries[0].update).toHaveBeenCalledWith({ category_id: null });
+		expect(queries[0].eq).toHaveBeenCalledWith(
+			"category_id",
+			"category-deporte",
+		);
+		expect(queries[1].delete).toHaveBeenCalledTimes(1);
+		expect(queries[1].eq).toHaveBeenCalledWith("id", "category-deporte");
+		expect(queries[0].update.mock.invocationCallOrder[0]).toBeLessThan(
+			queries[1].delete.mock.invocationCallOrder[0],
+		);
+		expect(actionMocks.deleteImages).not.toHaveBeenCalled();
+	});
+
+	// D5: rows die before their Storage objects. A leaked object is invisible; a
+	// surviving row pointing at a deleted object is a broken image on the public
+	// site.
+	it("deletes photo rows and the category before removing any stored object", async () => {
+		const { client, queries } = createSupabaseClientMock([
+			{
+				table: "gallery_items",
+				response: {
+					data: [{ image_url: "/one.jpg" }, { image_url: "/two.jpg" }],
+					error: null,
+				},
+			},
+			{ table: "gallery_items", response: { data: null, error: null } },
+			{ table: "gallery_categories", response: { data: null, error: null } },
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+
+		await deleteGalleryCategory(
+			createFormData({ id: "category-deporte", mode: "purge" }),
+		);
+
+		expect(queries[0].select).toHaveBeenCalledWith("id, image_url");
+		expect(queries[1].delete).toHaveBeenCalledTimes(1);
+		expect(queries[2].delete).toHaveBeenCalledTimes(1);
+		expect(actionMocks.deleteImages).toHaveBeenCalledWith([
+			"/one.jpg",
+			"/two.jpg",
+		]);
+		expect(queries[2].delete.mock.invocationCallOrder[0]).toBeLessThan(
+			actionMocks.deleteImages.mock.invocationCallOrder[0],
+		);
+	});
+
+	// The item reference is ON DELETE RESTRICT, so a category still bound to a
+	// photo — a row rebound in another tab after the unbind ran, say — refuses to
+	// delete. The action must fail loudly rather than report success and
+	// revalidate a page whose state did not change.
+	it("fails loudly when a bound photo makes the category delete restrict", async () => {
+		const { client } = createSupabaseClientMock([
+			{ table: "gallery_items", response: { data: null, error: null } },
+			{
+				table: "gallery_categories",
+				response: {
+					data: null,
+					error: {
+						message:
+							'update or delete on table "gallery_categories" violates foreign key constraint "gallery_items_category_id_fkey" on table "gallery_items"',
+						code: "23503",
+					},
+				},
+			},
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+
+		await expect(
+			deleteGalleryCategory(
+				createFormData({ id: "category-deporte", mode: "keep" }),
+			),
+		).rejects.toThrow("mutation failed for gallery_categories");
+
+		expect(actionMocks.revalidatePath).not.toHaveBeenCalled();
+	});
+
+	// D8: the server derives the legacy text from the picked id. A client that
+	// submitted a name could make the two columns disagree.
+	it("derives an item's legacy category text from the picked category id", async () => {
+		const { client, queries } = createSupabaseClientMock([
+			{
+				table: "gallery_categories",
+				response: { data: { name: "Deporte" }, error: null },
+			},
+			{
+				table: "gallery_items",
+				response: { data: { order_index: 2 }, error: null },
+			},
+			{ table: "gallery_items", response: { data: null, error: null } },
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+
+		await expect(
+			createGalleryItem(
+				IDLE_STATE,
+				createGalleryItemFormData({
+					category: null,
+					category_id: "category-deporte",
+				}),
+			),
+		).resolves.toEqual({ status: "success" });
+
+		expect(queries[0].select).toHaveBeenCalledWith("name");
+		expect(queries[0].eq).toHaveBeenCalledWith("id", "category-deporte");
+		expect(queries[2].insert).toHaveBeenCalledWith(
+			expect.objectContaining({
+				category_id: "category-deporte",
+				category: "Deporte",
+			}),
+		);
+	});
+
+	it("stores no binding and no text when no category is selected", async () => {
+		const { client, queries } = createSupabaseClientMock([
+			{
+				table: "gallery_items",
+				response: { data: { order_index: 2 }, error: null },
+			},
+			{ table: "gallery_items", response: { data: null, error: null } },
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+
+		await expect(
+			createGalleryItem(
+				IDLE_STATE,
+				createGalleryItemFormData({ category: null, category_id: "" }),
+			),
+		).resolves.toEqual({ status: "success" });
+
+		expect(queries[1].insert).toHaveBeenCalledWith(
+			expect.objectContaining({ category_id: null, category: null }),
+		);
+	});
+
+	it.each([
+		["create", createGalleryItem],
+		["update", updateGalleryItem],
+	])(
+		"refuses to %s an item against a category that no longer exists",
+		async (_case, action) => {
+			const { client } = createSupabaseClientMock([
+				{ table: "gallery_categories", response: { data: null, error: null } },
+			]);
+			actionMocks.createAdminClient.mockReturnValue(client);
+
+			await expect(
+				action(
+					IDLE_STATE,
+					createGalleryItemFormData({
+						id: "gallery-id",
+						category: null,
+						category_id: "category-gone",
+					}),
+				),
+			).resolves.toEqual({
+				status: "error",
+				message: "La categoría seleccionada ya no existe. Actualizá la página.",
+			});
+
+			expect(actionMocks.revalidatePath).not.toHaveBeenCalled();
+		},
+	);
+
+	it("clears the cascade marker when an item update makes the photo visible", async () => {
+		const { client, queries } = createSupabaseClientMock([
+			{
+				table: "gallery_categories",
+				response: { data: { name: "Deporte" }, error: null },
+			},
+			{ table: "gallery_items", response: { data: null, error: null } },
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+
+		await expect(
+			updateGalleryItem(
+				IDLE_STATE,
+				createGalleryItemFormData({
+					id: "gallery-id",
+					category: null,
+					category_id: "category-deporte",
+					is_active: "on",
+				}),
+			),
+		).resolves.toEqual({ status: "success" });
+
+		expect(queries[1].update).toHaveBeenCalledWith(
+			expect.objectContaining({ is_active: true, hidden_by_category: false }),
+		);
+	});
+
+	// Hiding a photo by hand must NOT write the marker: the marker means "hidden
+	// by a category cascade", and only that cascade may set it.
+	it("does not write the marker when an item update hides the photo", async () => {
+		const { client, queries } = createSupabaseClientMock([
+			{
+				table: "gallery_categories",
+				response: { data: { name: "Deporte" }, error: null },
+			},
+			{ table: "gallery_items", response: { data: null, error: null } },
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+
+		await expect(
+			updateGalleryItem(
+				IDLE_STATE,
+				createGalleryItemFormData({
+					id: "gallery-id",
+					category: null,
+					category_id: "category-deporte",
+					is_active: null,
+				}),
+			),
+		).resolves.toEqual({ status: "success" });
+
+		expect(queries[1].update).toHaveBeenCalledWith(
+			expect.not.objectContaining({ hidden_by_category: expect.anything() }),
+		);
+	});
+
+	it("does not write the marker when a toggle hides the photo", async () => {
+		const { client, queries } = createSupabaseClientMock([
+			{ table: "gallery_items", response: { data: null, error: null } },
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+
+		await toggleGalleryItem(createFormData({ id: "gallery-id" }));
+
+		expect(queries[0].update).toHaveBeenCalledWith({ is_active: false });
 	});
 
 	it("updates only interview CRM fields and revalidates CRM admin paths", async () => {
