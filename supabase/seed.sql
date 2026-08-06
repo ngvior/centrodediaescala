@@ -35,6 +35,11 @@ INSERT INTO public.site_settings (setting_group, setting_key, setting_value, set
 ('ABOUT', 'about_requirements_items', $$["Mayor a 18 años","Fotocopia de DNI","Fotocopia de Certificado de Discapacidad"]$$, 'JSON', 'Lista visible de requisitos de inscripción.'),
 ('ACTIVIDADES', 'activities_section_title', 'Actividades', 'TEXT', 'Título de la sección actividades'),
 ('GALERIA', 'gallery_section_title', 'Galería', 'TEXT', 'Título de la sección galería'),
+('GALERIA', 'gallery_all_filter_label', 'Todas', 'TEXT', 'Texto del filtro que muestra todas las fotos de la galería.'),
+-- Kept as a fixture even though nothing reads it any more: the category backfill
+-- in `supabase/migrations/20260805000000_gallery_categories.sql` derives its
+-- rows from this array, so removing it here would make a fresh environment
+-- bootstrap a gallery with no categories at all.
 ('GALERIA', 'gallery_filter_labels', $$["Todas","Deporte","Integración","Terapias Ocupacionales","Manos que Hacen"]$$, 'JSON', 'Lista de etiquetas visibles para filtros de galería.'),
 ('EQUIPO', 'professionals_section_title', 'Nuestros Profesionales', 'TEXT', 'Título de la sección profesionales.'),
 ('EQUIPO', 'professionals_subtitle', 'Estamos orgullosos de los profesionales que nos acompañan', 'TEXT', 'Subtítulo de la sección profesionales.'),

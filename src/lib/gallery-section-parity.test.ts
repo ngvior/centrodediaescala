@@ -51,6 +51,34 @@ describe("GallerySection styling parity", () => {
 		expect(componentSource).not.toContain("hasMoreItems");
 	});
 
+	// Replaces the former `galleryFilterLabels` assertions. Chips come from the
+	// category records and match on `category_id`; the ABSENCE half is the point,
+	// exactly as with `Ver más` and `visibleCount` above. Name comparison was the
+	// drift mechanism: `resolveCategory` returns the bound record's name, so a
+	// rename moved every bound photo's resolved name while the stored filter label
+	// still held the old text, and the chip it renamed silently emptied. Nothing
+	// may put that comparison back without failing here.
+	it("matches photos to filter chips by category id, never by category name", () => {
+		const componentSource = readProjectFile(
+			"src/components/sections/GallerySection.tsx",
+		);
+
+		expect(componentSource).toContain('from "@/lib/gallery-filter"');
+		expect(componentSource).toContain("buildGalleryFilterChips(");
+		expect(componentSource).toContain(
+			"filterByCategoryId(gallery, activeCategoryId)",
+		);
+		expect(componentSource).toContain("useState<string | null>(null)");
+		expect(componentSource).toContain('key={chip.id ?? "all"}');
+		expect(componentSource).toContain("chip.id === activeCategoryId");
+
+		// No name comparison, and no label-shaped filter state to compare against.
+		expect(componentSource).not.toContain("toLowerCase()");
+		expect(componentSource).not.toContain("galleryFilterLabels");
+		expect(componentSource).not.toContain("activeFilter");
+		expect(componentSource).not.toContain("isAllFilter");
+	});
+
 	// The hardcoded 640x480 hint was applied to every photo regardless of its real
 	// shape, which is what made the section jump as images decoded.
 	it("reserves each preview's box from its stored dimensions", () => {

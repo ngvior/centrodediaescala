@@ -9,7 +9,7 @@ import { SortableVerticalList } from "@/components/admin/sortable-vertical-list"
 
 /**
  * Friendly editor for the JSON string-list site settings (about_compliance_items,
- * about_requirements_items, gallery_filter_labels). Rows of text inputs with
+ * about_requirements_items). Rows of text inputs with
  * add / remove / drag-reorder. The trimmed, non-empty rows are serialized to a
  * hidden JSON input ("setting_value"), so the admin can never produce malformed
  * JSON — only a well-formed `string[]`.

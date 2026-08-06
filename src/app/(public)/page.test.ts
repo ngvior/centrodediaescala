@@ -57,6 +57,32 @@ describe("public contact section legacy parity", () => {
 	});
 });
 
+describe("public gallery section wiring", () => {
+	// The chips are a read now, not a setting. Only the catch-all label is still
+	// configured, and it is a plain string rather than the old label array.
+	it("passes the stored categories and the catch-all label to the section", () => {
+		const source = readPublicPageSource();
+
+		expect(source).toContain("galleryCategories={galleryCategories}");
+		expect(source).toContain(
+			"galleryAllFilterLabel={siteSettings.gallery_all_filter_label}",
+		);
+		expect(source).not.toContain("galleryFilterLabels");
+		expect(source).not.toContain("siteSettings.gallery_filter_labels");
+	});
+
+	// Both gallery reads are started before either is awaited. Awaiting the photos
+	// first would serialize two queries that do not depend on each other.
+	it("starts the category read in parallel with the other page reads", () => {
+		const source = readPublicPageSource();
+
+		expect(source).toContain("const galleryCategoriesPromise = getGalleryCategories();");
+		expect(source).toContain("galleryCategoriesPromise,");
+		expect(source).toContain("await Promise.all([");
+		expect(source).not.toContain("await getGalleryCategories()");
+	});
+});
+
 describe("public activities staggered layout", () => {
 	it("distributes activities across two independent columns with the second one offset", () => {
 		const source = readPublicPageSource();

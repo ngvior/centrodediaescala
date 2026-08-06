@@ -4,7 +4,11 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import type { GalleryItem } from "@/lib/api";
+import type { GalleryCategory, GalleryItem } from "@/lib/api";
+import {
+  buildGalleryFilterChips,
+  filterByCategoryId,
+} from "@/lib/gallery-filter";
 import {
   GALLERY_PAGE_SIZE,
   clampPage,
@@ -51,31 +55,38 @@ const PAGE_BUTTON_CLASSNAME =
 interface GallerySectionProps {
   gallery: GalleryItem[];
   gallerySectionTitle: string;
-  galleryFilterLabels: string[];
+  /** Active categories, already in ascending chip order. */
+  galleryCategories: GalleryCategory[];
+  galleryAllFilterLabel: string;
 }
 
 export function GallerySection({
   gallery,
   gallerySectionTitle,
-  galleryFilterLabels,
+  galleryCategories,
+  galleryAllFilterLabel,
 }: GallerySectionProps) {
-  const [activeFilter, setActiveFilter] = useState<string>(
-    galleryFilterLabels[0] || "Todas",
-  );
+  /**
+   * The selected category's identity, `null` for the catch-all chip.
+   *
+   * An id and not a label. A label is admin-editable text, so comparing it
+   * against a photo's category name meant a rename emptied the chip it renamed:
+   * the photos' resolved names moved while the stored label did not. `null`
+   * cannot collide with a real id, which is why the catch-all needs no sentinel
+   * string either.
+   */
+  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   /** Absolute index into the filtered collection, not into the current page. */
   const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(
     null,
   );
 
-  // Filter gallery items based on the active selection
-  // "Todas" is considered the default catch-all category (typically the first index)
-  const isAllFilter = activeFilter === galleryFilterLabels[0];
-  const filteredItems = isAllFilter
-    ? gallery
-    : gallery.filter(
-        (item) => item.category.toLowerCase() === activeFilter.toLowerCase(),
-      );
+  const chips = buildGalleryFilterChips(
+    galleryCategories,
+    galleryAllFilterLabel,
+  );
+  const filteredItems = filterByCategoryId(gallery, activeCategoryId);
   // Read once as a primitive. The callbacks below depend on how many items the
   // filter matched, and depending on `filteredItems.length` instead would defeat
   // their memoization: the array is handed to imported helpers, so the React
@@ -89,8 +100,8 @@ export function GallerySection({
   const currentPage = clampPage(page, filteredCount);
   const pageItems = getPageItems(filteredItems, currentPage);
 
-  const handleFilterClick = (label: string) => {
-    setActiveFilter(label);
+  const handleFilterClick = (categoryId: string | null) => {
+    setActiveCategoryId(categoryId);
     setPage(0);
     setSelectedItemIndex(null);
   };
@@ -165,12 +176,19 @@ export function GallerySection({
     };
 
     window.addEventListener("keydown", handleKeyDown);
-    // Prevent background scrolling when lightbox is open
-    document.body.style.overflow = "hidden";
+    // Prevent background scrolling when lightbox is open.
+    //
+    // Written through setProperty/removeProperty rather than as an assignment to
+    // `style.overflow`: the React Compiler's immutability rule reads assigning to
+    // a property of a value from outside the component as mutating that value,
+    // and rejects it even inside an effect. The method form expresses the same
+    // inline-style write — `removeProperty` clears the declaration exactly as
+    // assigning `""` did — and does not trip the rule.
+    document.body.style.setProperty("overflow", "hidden");
 
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = "";
+      document.body.style.removeProperty("overflow");
     };
   }, [selectedItemIndex, filteredCount]);
 
@@ -191,20 +209,22 @@ export function GallerySection({
 
         {/* Filters */}
         <div className="flex flex-wrap justify-center gap-2 mb-10 border-b border-[#e5e5e5] pb-4">
-          {galleryFilterLabels.map((label) => {
-            const isActive = label === activeFilter;
+          {chips.map((chip) => {
+            const isActive = chip.id === activeCategoryId;
             return (
               <button
-                key={label}
+                // The catch-all carries no id, and a label is not a key: two
+                // categories may legitimately read the same.
+                key={chip.id ?? "all"}
                 type="button"
-                onClick={() => handleFilterClick(label)}
+                onClick={() => handleFilterClick(chip.id)}
                 className={`rounded-button px-4 py-2 font-bold uppercase text-sm transition-colors duration-300 border border-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff7e2e] focus-visible:ring-offset-2 ${
                   isActive
                     ? "bg-[#ff7e2e] text-white"
                     : "text-muted-foreground hover:bg-[#ff7e2e] hover:text-white"
                 }`}
               >
-                {label}
+                {chip.label}
               </button>
             );
           })}
