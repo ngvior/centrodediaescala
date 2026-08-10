@@ -2,6 +2,7 @@ import { cache } from "react";
 
 import {
 	toGalleryItem,
+	type GalleryCategory,
 	type GalleryItem,
 	type GalleryItemJoinRow,
 } from "@/lib/gallery-category";
@@ -50,10 +51,14 @@ export type Event = {
 };
 
 /**
- * Owned by `@/lib/gallery-category`, which resolves the shape, and re-exported
+ * Owned by `@/lib/gallery-category`, which resolves the shapes, and re-exported
  * here so every consumer keeps importing its page data from one module.
+ *
+ * Imported above and re-exported here rather than through a bare
+ * `export type { … } from "…"`: that form does not bind the name locally, so the
+ * reads below could not annotate themselves with it (TS2304).
  */
-export type { GalleryItem };
+export type { GalleryCategory, GalleryItem };
 
 type SupabaseResponse<T> = {
 	data: T | null;
@@ -174,3 +179,34 @@ export async function getGalleryItems(): Promise<GalleryItem[]> {
 
 	return rows.map(toGalleryItem);
 }
+
+/**
+ * The categories the public gallery offers as filter chips.
+ *
+ * `cache()`-wrapped like {@link getSiteSettings}: the chips and the grid are
+ * rendered from one page, and per-request memoization means a second caller
+ * costs nothing rather than issuing a second query.
+ */
+export const getGalleryCategories = cache(
+	async (): Promise<GalleryCategory[]> => {
+		const supabase = await createClient({ anon: true });
+		// `is_active` is filtered explicitly rather than left to the anon RLS
+		// policy. The policy already hides inactive categories from anon, but the
+		// server role sees every row, and an archived category must not come back
+		// as a public filter chip just because the caller is privileged.
+		//
+		// Ascending `order_index` IS the chip order the visitor sees. The category
+		// backfill seeded it from the previous filter-label order, so this
+		// reproduces the order the gallery already had.
+		const response = await supabase
+			.from("gallery_categories")
+			.select("id, name")
+			.eq("is_active", true)
+			.order("order_index", { ascending: true });
+
+		return assertSupabaseData(
+			"gallery_categories",
+			response as SupabaseResponse<GalleryCategory[]>,
+		);
+	},
+);

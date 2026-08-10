@@ -2,6 +2,7 @@ import { createElement, type ReactNode } from "react";
 
 import {
 	getActivities,
+	getGalleryCategories,
 	getGalleryItems,
 	getHomeObjectives,
 	getProfessionals,
@@ -123,15 +124,26 @@ export default async function Home() {
 	const professionalsPromise = getProfessionals();
 	const objectivesPromise = getHomeObjectives();
 	const galleryPromise = getGalleryItems();
+	// Started alongside the photos rather than after them: the filter chips and the
+	// grid are independent reads, and awaiting one before starting the other would
+	// serialize two queries that have nothing to say to each other.
+	const galleryCategoriesPromise = getGalleryCategories();
 
-	const [siteSettings, activities, professionals, objectives, gallery] =
-		await Promise.all([
-			siteSettingsPromise,
-			activitiesPromise,
-			professionalsPromise,
-			objectivesPromise,
-			galleryPromise,
-		]);
+	const [
+		siteSettings,
+		activities,
+		professionals,
+		objectives,
+		gallery,
+		galleryCategories,
+	] = await Promise.all([
+		siteSettingsPromise,
+		activitiesPromise,
+		professionalsPromise,
+		objectivesPromise,
+		galleryPromise,
+		galleryCategoriesPromise,
+	]);
 
 	const complianceHalf = Math.ceil(
 		siteSettings.about_compliance_items.length / 2,
@@ -330,7 +342,8 @@ export default async function Home() {
 			<GallerySection
 				gallery={gallery}
 				gallerySectionTitle={siteSettings.gallery_section_title}
-				galleryFilterLabels={siteSettings.gallery_filter_labels}
+				galleryCategories={galleryCategories}
+				galleryAllFilterLabel={siteSettings.gallery_all_filter_label}
 			/>
 
 			<QuoteBand />

@@ -32,6 +32,7 @@ vi.mock("@/lib/supabase/server", () => ({
 
 import {
 	getActivities,
+	getGalleryCategories,
 	getGalleryItems,
 	getProfessionals,
 	getSiteSettings,
@@ -317,5 +318,58 @@ describe("public data API", () => {
 				category_id: null,
 			}),
 		]);
+	});
+
+	// This read IS the public chip list, so what it returns and in what order is
+	// exactly what a visitor sees above the grid.
+	it("reads the active gallery categories in ascending chip order", async () => {
+		const { client, queries } = createSupabaseClientMock([
+			{
+				table: "gallery_categories",
+				response: {
+					data: [
+						{ id: "category-deporte", name: "Deporte" },
+						{ id: "category-integracion", name: "Integración" },
+					],
+					error: null,
+				},
+			},
+		]);
+		apiMocks.createClient.mockResolvedValue(client);
+
+		await expect(getGalleryCategories()).resolves.toEqual([
+			{ id: "category-deporte", name: "Deporte" },
+			{ id: "category-integracion", name: "Integración" },
+		]);
+
+		expect(client.from).toHaveBeenCalledWith("gallery_categories");
+		// Pinned to two columns: a chip needs an identity to match on and a label
+		// to read. `is_active` and `order_index` are applied by the query itself,
+		// so shipping them onward would only invite a second opinion about them.
+		expect(queries[0].select).toHaveBeenCalledWith("id, name");
+		// Explicit, never left to RLS alone: the anon policy hides inactive rows
+		// but the server role does not, and an archived category must not resurface
+		// as a public chip just because the caller is privileged.
+		expect(queries[0].eq).toHaveBeenCalledWith("is_active", true);
+		expect(queries[0].order).toHaveBeenCalledWith("order_index", {
+			ascending: true,
+		});
+	});
+
+	it("fails explicitly when the gallery category read errors", async () => {
+		const { client } = createSupabaseClientMock([
+			{
+				table: "gallery_categories",
+				response: {
+					data: null,
+					error: { message: "permission denied" },
+				},
+			},
+		]);
+		apiMocks.createClient.mockResolvedValue(client);
+
+		await expect(getGalleryCategories()).rejects.toThrow(
+			"Supabase read failed for gallery_categories: permission denied",
+		);
 	});
 });

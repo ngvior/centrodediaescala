@@ -47,7 +47,7 @@ export type PublicSiteSettings = {
 	about_requirements_items: string[];
 	activities_section_title: string;
 	gallery_section_title: string;
-	gallery_filter_labels: string[];
+	gallery_all_filter_label: string;
 	professionals_section_title: string;
 	professionals_subtitle: string;
 	contact_title: string;
@@ -352,13 +352,25 @@ export const SITE_SETTING_DEFINITIONS = [
 		description: "Título de la sección galería.",
 		input: "input",
 	},
+	/**
+	 * The catch-all chip's label. The other chips are no longer configured here at
+	 * all — they are the stored categories, so creating or renaming one is enough
+	 * and there is nothing left to keep in sync by hand.
+	 *
+	 * `required: false` is load-bearing, not caution. {@link parsePublicSiteSettings}
+	 * aborts the WHOLE parse when a required row is missing, so registering this
+	 * one as required would turn an unseeded database into a 500 on the entire
+	 * public homepage. Not required means a missing row resolves to `""` and the
+	 * gallery falls back to `DEFAULT_GALLERY_ALL_FILTER_LABEL`.
+	 */
 	{
-		key: "gallery_filter_labels",
+		key: "gallery_all_filter_label",
 		group: "GALERIA",
-		label: "Filtros galería",
-		type: "JSON",
-		description: "Lista de etiquetas visibles para filtros de galería.",
-		input: "json",
+		label: "Etiqueta filtro todas",
+		type: "TEXT",
+		description: "Texto del filtro que muestra todas las fotos de la galería.",
+		input: "input",
+		required: false,
 	},
 	{
 		key: "professionals_section_title",

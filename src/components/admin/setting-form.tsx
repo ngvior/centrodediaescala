@@ -33,12 +33,18 @@ const RICH_TEXT_EDITOR_KEYS: ReadonlySet<SiteSettingKey> = new Set<SiteSettingKe
 	],
 );
 
-/** JSON keys that get the friendly {@link StringListEditor}. */
+/**
+ * JSON keys that get the friendly {@link StringListEditor}.
+ *
+ * An allow-list of WIDGETS, not of settings. Dropping a key here does not remove
+ * its control — it downgrades it to a raw JSON textarea. A setting is removed
+ * from Configuración by losing its `SITE_SETTING_DEFINITIONS` entry, and this
+ * set is only cleaned up afterwards so no dead key remains.
+ */
 const STRING_LIST_EDITOR_KEYS: ReadonlySet<SiteSettingKey> =
 	new Set<SiteSettingKey>([
 		"about_compliance_items",
 		"about_requirements_items",
-		"gallery_filter_labels",
 	]);
 
 function SettingValueField({ setting }: { setting: AdminSiteSetting }) {

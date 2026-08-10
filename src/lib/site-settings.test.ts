@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import { buildGalleryFilterChips } from "./gallery-filter";
 import {
 	buildAdminSiteSettings,
+	getSiteSettingDefinition,
 	NAVIGATION_SECTIONS,
 	normalizeSiteSettingValue,
 	parsePublicSiteSettings,
@@ -187,5 +189,99 @@ describe("site settings optional social links", () => {
 		expect(() => parsePublicSiteSettings(rowsEmptyRequired)).toThrow(
 			"Empty required site setting: about_text",
 		);
+	});
+});
+
+describe("gallery catch-all filter label setting", () => {
+	it("is registered as a not-required GALERIA text setting", () => {
+		expect(SITE_SETTING_DEFINITIONS).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					key: "gallery_all_filter_label",
+					group: "GALERIA",
+					type: "TEXT",
+					input: "input",
+					label: "Etiqueta filtro todas",
+					description:
+						"Texto del filtro que muestra todas las fotos de la galería.",
+					required: false,
+				}),
+			]),
+		);
+	});
+
+	// The whole reason it is not required. A required row missing in production
+	// aborts the entire parse, which would 500 the public homepage over a label.
+	it("parses the public settings without its row instead of throwing", () => {
+		const rows = createRows().filter(
+			(row) => row.setting_key !== "gallery_all_filter_label",
+		);
+
+		expect(() => parsePublicSiteSettings(rows)).not.toThrow();
+		expect(parsePublicSiteSettings(rows)).toMatchObject({
+			gallery_all_filter_label: "",
+		});
+	});
+
+	// A not-required row that EXISTS but is blank resolves to "" too, which is why
+	// the gallery's fallback covers the value and not only the row's absence.
+	it("resolves a blank row to an empty value", () => {
+		const rows = createRows().map((row) =>
+			row.setting_key === "gallery_all_filter_label"
+				? { ...row, setting_value: "   " }
+				: row,
+		);
+
+		expect(parsePublicSiteSettings(rows)).toMatchObject({
+			gallery_all_filter_label: "",
+		});
+		expect(
+			normalizeSiteSettingValue("gallery_all_filter_label", "   ", "TEXT"),
+		).toBe("");
+	});
+
+	// Both the absent and the blank case land on the same rendered label, and the
+	// fallback that produces it lives in the pure chip builder, not in the parse.
+	it.each([
+		["an absent row", undefined],
+		["a blank row", "   "],
+	])("renders the catch-all chip as Todas for %s", (_case, settingValue) => {
+		const rows =
+			settingValue === undefined
+				? createRows().filter(
+						(row) => row.setting_key !== "gallery_all_filter_label",
+					)
+				: createRows().map((row) =>
+						row.setting_key === "gallery_all_filter_label"
+							? { ...row, setting_value: settingValue }
+							: row,
+					);
+		const settings = parsePublicSiteSettings(rows);
+
+		expect(
+			buildGalleryFilterChips([], settings.gallery_all_filter_label)[0],
+		).toEqual({ id: null, label: "Todas" });
+	});
+});
+
+describe("retired gallery filter labels setting", () => {
+	it("has no definition, so Configuración offers no editor for it", () => {
+		expect(
+			SITE_SETTING_DEFINITIONS.map((definition) => definition.key),
+		).not.toContain("gallery_filter_labels");
+		expect(getSiteSettingDefinition("gallery_filter_labels")).toBeUndefined();
+	});
+
+	// A Configuración tab loaded before the definition was removed can still POST
+	// the old key. Refusing it loudly is what keeps the stored row intact: the
+	// alternative is `updateSiteSetting` writing a value nothing reads.
+	it("refuses a stale submission with the Spanish unknown-setting message", () => {
+		expect(() =>
+			normalizeSiteSettingValue(
+				"gallery_filter_labels",
+				JSON.stringify(["Todas", "Deporte"]),
+				"JSON",
+			),
+		).toThrow("Configuración desconocida: gallery_filter_labels");
 	});
 });

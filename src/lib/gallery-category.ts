@@ -13,6 +13,18 @@ export type GalleryCategoryEmbed = {
 };
 
 /**
+ * A category record as the public gallery needs it: an identity and a label.
+ *
+ * Narrower than the stored row on purpose. The read already applied `is_active`
+ * and `order_index`, so nothing downstream has to re-decide visibility or order
+ * — and the identity, not the name, is what a filter chip carries.
+ */
+export type GalleryCategory = {
+	id: string;
+	name: string;
+};
+
+/**
  * One row of the public gallery read, with its category LEFT-joined.
  *
  * `gallery_categories` is null whenever the reader cannot see the record: the
@@ -35,9 +47,14 @@ export type GalleryItem = {
 	id: string;
 	title: string;
 	/**
-	 * The resolved category, never null: GallerySection lowercases it to match a
-	 * filter chip. An empty string matches no chip, so a photo with no category
-	 * at all appears only under the catch-all.
+	 * The resolved category, never null — DISPLAY DATA ONLY. It captions the
+	 * preview's hover overlay and nothing else.
+	 *
+	 * It is deliberately NOT what matches a photo to a filter chip: chips match
+	 * on `category_id`. Comparing this string against a chip label is the drift
+	 * mechanism this contract exists to keep out. A rename changes this value
+	 * while any stored label still holds the old text, so the photo would fall
+	 * off its own chip with no visible cause.
 	 */
 	category: string;
 	category_id: string | null;

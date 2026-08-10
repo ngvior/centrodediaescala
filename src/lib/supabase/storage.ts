@@ -108,17 +108,54 @@ export async function uploadImage(file: File, folder: string): Promise<string> {
 export async function deleteImage(url: string | null): Promise<void> {
 	if (!url) return;
 
+	const storagePath = toStoragePath(url);
+	if (!storagePath) return;
+
+	const supabase = createAdminClient();
+	await supabase.storage.from(BUCKET_NAME).remove([storagePath]);
+}
+
+/**
+ * Deletes many stored images in one call.
+ *
+ * Same posture as {@link deleteImage} and for the same reasons: URLs that are
+ * not ours (static paths, external hosts, nulls) are skipped rather than
+ * refused, and a failed removal is ignored. Callers reach this only after the
+ * rows that pointed at these objects are already gone, so a leaked object is
+ * invisible while a thrown error here would fail an operation the database has
+ * already committed.
+ *
+ * One `remove([...])` rather than a loop: Storage takes a list, and a purge of
+ * a large category would otherwise issue one request per photo.
+ */
+export async function deleteImages(
+	urls: readonly (string | null)[],
+): Promise<void> {
+	const storagePaths = urls
+		.map(toStoragePath)
+		.filter((path): path is string => path !== null);
+
+	if (storagePaths.length === 0) return;
+
+	const supabase = createAdminClient();
+	await supabase.storage.from(BUCKET_NAME).remove(storagePaths);
+}
+
+/**
+ * The object's path inside our bucket, or null when the URL is not ours.
+ *
+ * The prefix check is the guard: it keeps a static path like `/galeria/1.jpg`
+ * or a link to another host from being turned into a delete against our bucket.
+ */
+function toStoragePath(url: string | null): string | null {
+	if (!url) return null;
+
 	const projectUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-	if (!projectUrl) return;
+	if (!projectUrl) return null;
 
 	const marker = `${projectUrl}/storage/v1/object/public/${BUCKET_NAME}/`;
 
-	// Only delete if the URL matches our bucket's domain and prefix
-	if (url.startsWith(marker)) {
-		const storagePath = url.substring(marker.length);
-		if (!storagePath) return;
+	if (!url.startsWith(marker)) return null;
 
-		const supabase = createAdminClient();
-		await supabase.storage.from(BUCKET_NAME).remove([storagePath]);
-	}
+	return url.substring(marker.length) || null;
 }

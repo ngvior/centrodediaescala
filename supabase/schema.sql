@@ -99,6 +99,11 @@ CREATE TABLE IF NOT EXISTS public.gallery_items (
   width INTEGER,
   height INTEGER,
   is_active BOOLEAN NOT NULL DEFAULT true,
+  -- Records that this photo was hidden as a consequence of its category being
+  -- deactivated, so reactivating that category republishes exactly these rows
+  -- and never a photo the admin hid on purpose. Admin bookkeeping only: the
+  -- public read filters is_active = true, so a marked row never reaches it.
+  hidden_by_category BOOLEAN NOT NULL DEFAULT false,
   order_index INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now())
 );
@@ -129,6 +134,11 @@ ALTER TABLE public.gallery_items ADD COLUMN IF NOT EXISTS width INTEGER;
 ALTER TABLE public.gallery_items ADD COLUMN IF NOT EXISTS height INTEGER;
 ALTER TABLE public.gallery_items
   ADD COLUMN IF NOT EXISTS category_id UUID REFERENCES public.gallery_categories(id) ON DELETE RESTRICT;
+-- Safe on a populated table: since Postgres 11 a non-volatile default is stored
+-- in the catalogue rather than written into every row. false is correct by
+-- construction — no cascade has run against rows that predate the column.
+ALTER TABLE public.gallery_items
+  ADD COLUMN IF NOT EXISTS hidden_by_category BOOLEAN NOT NULL DEFAULT false;
 -- No-op once the column is already nullable. Backfilling category_id from the
 -- legacy text is NOT done here: schema.sql is structure only, and the one-off
 -- data move lives in supabase/migrations/20260805000000_gallery_categories.sql.
@@ -151,6 +161,27 @@ BEGIN
         (width IS NULL OR width > 0)
         AND (height IS NULL OR height > 0)
       );
+  END IF;
+END $$;
+
+-- Declared ONCE, unlike the columns above. The declare-twice idiom exists
+-- because `ADD COLUMN IF NOT EXISTS` skips a column inside an already-created
+-- table; a CHECK has no such form, so it is guarded instead. Writing it inline
+-- in the CREATE TABLE as well would give the fresh-environment copy an
+-- auto-generated name that this `conname` probe could never match, and the
+-- guard would then add a duplicate constraint alongside it.
+--
+-- The create/rename actions reject a blank name too, but `service_role` writes
+-- to this table directly, so the rule belongs in the schema as well.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'gallery_categories_name_not_blank'
+      AND conrelid = 'public.gallery_categories'::regclass
+  ) THEN
+    ALTER TABLE public.gallery_categories
+      ADD CONSTRAINT gallery_categories_name_not_blank CHECK (btrim(name) <> '');
   END IF;
 END $$;
 
