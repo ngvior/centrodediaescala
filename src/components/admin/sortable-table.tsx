@@ -1,8 +1,9 @@
 import {
 	type ReactNode,
 	createContext,
+	startTransition,
 	useContext,
-	useState,
+	useOptimistic,
 } from "react";
 import {
 	DndContext,
@@ -23,6 +24,8 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 
+import { TableRow } from "@/components/ui/table";
+
 /**
  * The built <SortableContext>+rows node, shared from the provider
  * (<SortableTable>) down to the body part (<SortableTableRows>) via React
@@ -35,13 +38,13 @@ const SortableRowsContext = createContext<ReactNode>(null);
 type SortableTableProps<T> = {
 	items: T[];
 	getId: (item: T) => string;
-	onReorder: (orderedIds: string[]) => void;
+	onReorder: (orderedIds: string[]) => void | Promise<void>;
 	/**
 	 * Renders the cells for one row. The returned node is placed inside a
 	 * <tr>, so it should be the row's <td> cells. `handle` is the drag handle —
-	 * render it inside one of the cells.
+	 * render it inside one of the cells. `index` is the displayed position (0-indexed).
 	 */
-	renderRow: (item: T, handle: ReactNode) => ReactNode;
+	renderRow: (item: T, handle: ReactNode, index: number) => ReactNode;
 	children: ReactNode;
 };
 
@@ -57,10 +60,10 @@ type SortableTableProps<T> = {
  * emits no DOM and React context follows tree position, so each row's
  * useSortable is still correctly scoped under DndContext + SortableContext.
  *
- * Reordering is optimistic: the new order is applied locally on drag end and
- * reported via `onReorder(orderedIds)`. When the parent re-renders with a
- * different `items` order (e.g. after the server action revalidates, or
- * reverts on failure), the local order re-syncs to the incoming props.
+ * Reordering is optimistic via React's `useOptimistic`: the new order is applied
+ * optimistically inside a transition that awaits `onReorder(orderedIds)`. React
+ * holds the optimistic order until the action and RSC revalidation commit, or
+ * automatically reverts to server order on failure.
  */
 export function SortableTable<T>({
 	items,
@@ -70,18 +73,11 @@ export function SortableTable<T>({
 	children,
 }: SortableTableProps<T>) {
 	const incomingIds = items.map(getId);
-	const incomingSignature = incomingIds.join(" ");
 
-	const [orderedIds, setOrderedIds] = useState(incomingIds);
-	const [syncedSignature, setSyncedSignature] = useState(incomingSignature);
-
-	// Re-sync optimistic order when the parent provides a new set/order.
-	// (Adjusting state during render per the React "you might not need an
-	// effect" pattern — avoids a flash from a post-render effect.)
-	if (incomingSignature !== syncedSignature) {
-		setOrderedIds(incomingIds);
-		setSyncedSignature(incomingSignature);
-	}
+	const [optimisticIds, applyOptimisticIds] = useOptimistic(
+		incomingIds,
+		(_prev, next: string[]) => next,
+	);
 
 	const sensors = useSensors(
 		useSensor(PointerSensor),
@@ -91,7 +87,7 @@ export function SortableTable<T>({
 	);
 
 	const itemById = new Map(items.map((item) => [getId(item), item]));
-	const orderedItems = orderedIds
+	const orderedItems = optimisticIds
 		.map((id) => itemById.get(id))
 		.filter((item): item is T => item !== undefined);
 
@@ -102,24 +98,25 @@ export function SortableTable<T>({
 			return;
 		}
 
-		const oldIndex = orderedIds.indexOf(String(active.id));
-		const newIndex = orderedIds.indexOf(String(over.id));
+		const oldIndex = optimisticIds.indexOf(String(active.id));
+		const newIndex = optimisticIds.indexOf(String(over.id));
 
 		if (oldIndex === -1 || newIndex === -1) {
 			return;
 		}
 
-		const nextOrder = arrayMove(orderedIds, oldIndex, newIndex);
-		setOrderedIds(nextOrder);
-		setSyncedSignature(nextOrder.join(" "));
-		onReorder(nextOrder);
+		const nextOrder = arrayMove(optimisticIds, oldIndex, newIndex);
+		startTransition(async () => {
+			applyOptimisticIds(nextOrder);
+			await onReorder(nextOrder);
+		});
 	}
 
 	const rows = (
-		<SortableContext items={orderedIds} strategy={verticalListSortingStrategy}>
-			{orderedItems.map((item) => (
+		<SortableContext items={optimisticIds} strategy={verticalListSortingStrategy}>
+			{orderedItems.map((item, index) => (
 				<SortableRow key={getId(item)} id={getId(item)}>
-					{(handle) => renderRow(item, handle)}
+					{(handle) => renderRow(item, handle, index)}
 				</SortableRow>
 			))}
 		</SortableContext>
@@ -181,8 +178,8 @@ function SortableRow({ id, children }: SortableRowProps) {
 	);
 
 	return (
-		<tr ref={setNodeRef} style={style}>
+		<TableRow ref={setNodeRef} style={style}>
 			{children(handle)}
-		</tr>
+		</TableRow>
 	);
 }
