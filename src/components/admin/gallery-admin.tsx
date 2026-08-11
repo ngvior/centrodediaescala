@@ -113,11 +113,13 @@ function GalleryRow({
 	item,
 	handle,
 	categories,
+	index,
 }: {
 	item: AdminGalleryItem;
 	/** Null while the list is filtered — reordering a subset is unsafe. */
 	handle: ReactNode;
 	categories: AdminGalleryCategory[];
+	index: number;
 }) {
 	const { formAction, open, setOpen, errorMessage } =
 		useActionDialog(updateGalleryItem);
@@ -135,6 +137,9 @@ function GalleryRow({
 
 	return (
 		<>
+			<TableCell className="w-10 font-mono text-xs text-muted-foreground">
+				{index + 1}
+			</TableCell>
 			<TableCell className="w-10">{handle}</TableCell>
 			<TableCell>
 				<div className="flex items-center gap-3">
@@ -276,6 +281,9 @@ function GalleryItemsTable({
 				<Table>
 					<TableHeader>
 						<TableRow>
+							<TableHead className="w-10 text-xs font-mono text-muted-foreground">
+								#
+							</TableHead>
 							<TableHead className="w-10" />
 							<TableHead>Imagen</TableHead>
 							<TableHead>Categoría</TableHead>
@@ -287,9 +295,9 @@ function GalleryItemsTable({
 						{children}
 						{isEmpty ? (
 							<TableRow>
-								{/* +1 covers the drag-handle column that precedes COLUMN_COUNT data columns. */}
+								{/* +2 covers the drag-handle and # columns that precede COLUMN_COUNT data columns. */}
 								<TableCell
-									colSpan={COLUMN_COUNT + 1}
+									colSpan={COLUMN_COUNT + 2}
 									className="py-8 text-center text-muted-foreground"
 								>
 									<ImageIcon
@@ -727,13 +735,14 @@ export function GalleryAdmin({
 					isEmpty={visibleItems.length === 0}
 					emptyMessage="No hay imágenes para este filtro."
 				>
-					{visibleItems.map((item) => (
+					{visibleItems.map((item, index) => (
 						<TableRow key={item.id}>
 							{/* No drag handle: see the note above. */}
 							<GalleryRow
 								item={item}
 								handle={null}
 								categories={categories}
+								index={index}
 							/>
 						</TableRow>
 					))}
@@ -743,8 +752,13 @@ export function GalleryAdmin({
 					items={visibleItems}
 					getId={(item) => item.id}
 					onReorder={handleReorder}
-					renderRow={(item, handle) => (
-						<GalleryRow item={item} handle={handle} categories={categories} />
+					renderRow={(item, handle, index) => (
+						<GalleryRow
+							item={item}
+							handle={handle}
+							categories={categories}
+							index={index}
+						/>
 					)}
 				>
 					<GalleryItemsTable

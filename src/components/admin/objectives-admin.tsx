@@ -75,9 +75,11 @@ function ObjectiveFormFields({ item }: { item?: AdminHomeObjective }) {
 function ObjectiveRow({
 	item,
 	handle,
+	index,
 }: {
 	item: AdminHomeObjective;
 	handle: ReactNode;
+	index: number;
 }) {
 	const { formAction, open, setOpen, errorMessage } =
 		useActionDialog(updateHomeObjective);
@@ -93,6 +95,9 @@ function ObjectiveRow({
 
 	return (
 		<>
+			<TableCell className="w-10 font-mono text-xs text-muted-foreground">
+				{index + 1}
+			</TableCell>
 			<TableCell className="w-10">{handle}</TableCell>
 			<TableCell>
 				<div className="font-medium">{item.title}</div>
@@ -247,8 +252,8 @@ export function ObjectivesAdmin({ items }: { items: AdminHomeObjective[] }) {
 				items={items}
 				getId={(item) => item.id}
 				onReorder={handleReorder}
-				renderRow={(item, handle) => (
-					<ObjectiveRow item={item} handle={handle} />
+				renderRow={(item, handle, index) => (
+					<ObjectiveRow item={item} handle={handle} index={index} />
 				)}
 			>
 				<Card className="border-border bg-white shadow-sm">
@@ -256,6 +261,9 @@ export function ObjectivesAdmin({ items }: { items: AdminHomeObjective[] }) {
 						<Table>
 							<TableHeader>
 								<TableRow>
+									<TableHead className="w-10 text-xs font-mono text-muted-foreground">
+										#
+									</TableHead>
 									<TableHead className="w-10" />
 									<TableHead>Objetivo</TableHead>
 									<TableHead>Estado</TableHead>
@@ -266,9 +274,9 @@ export function ObjectivesAdmin({ items }: { items: AdminHomeObjective[] }) {
 								<SortableTableRows />
 								{items.length === 0 ? (
 									<TableRow>
-										{/* +1 covers the drag-handle column that precedes COLUMN_COUNT data columns. */}
+										{/* +2 covers the drag-handle and # columns that precede COLUMN_COUNT data columns. */}
 										<TableCell
-											colSpan={COLUMN_COUNT + 1}
+											colSpan={COLUMN_COUNT + 2}
 											className="py-8 text-center text-muted-foreground"
 										>
 											<CheckSquare

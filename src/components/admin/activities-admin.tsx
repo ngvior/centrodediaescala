@@ -83,9 +83,11 @@ function ActivityFormFields({ item }: { item?: AdminActivity }) {
 function ActivityRow({
 	item,
 	handle,
+	index,
 }: {
 	item: AdminActivity;
 	handle: ReactNode;
+	index: number;
 }) {
 	const { formAction, open, setOpen, errorMessage } =
 		useActionDialog(updateActivity);
@@ -104,6 +106,9 @@ function ActivityRow({
 
 	return (
 		<>
+			<TableCell className="w-10 font-mono text-xs text-muted-foreground">
+				{index + 1}
+			</TableCell>
 			<TableCell className="w-10">{handle}</TableCell>
 			<TableCell>
 				<div className="font-medium">{item.title}</div>
@@ -262,8 +267,8 @@ export function ActivitiesAdmin({ items }: { items: AdminActivity[] }) {
 				items={items}
 				getId={(item) => item.id}
 				onReorder={handleReorder}
-				renderRow={(item, handle) => (
-					<ActivityRow item={item} handle={handle} />
+				renderRow={(item, handle, index) => (
+					<ActivityRow item={item} handle={handle} index={index} />
 				)}
 			>
 				<Card className="border-border bg-white shadow-sm">
@@ -271,6 +276,9 @@ export function ActivitiesAdmin({ items }: { items: AdminActivity[] }) {
 						<Table>
 							<TableHeader>
 								<TableRow>
+									<TableHead className="w-10 text-xs font-mono text-muted-foreground">
+										#
+									</TableHead>
 									<TableHead className="w-10" />
 									<TableHead>Actividad</TableHead>
 									<TableHead>Categoría</TableHead>
@@ -283,9 +291,9 @@ export function ActivitiesAdmin({ items }: { items: AdminActivity[] }) {
 								<SortableTableRows />
 								{items.length === 0 ? (
 									<TableRow>
-										{/* +1 covers the drag-handle column that precedes COLUMN_COUNT data columns. */}
+										{/* +2 covers the drag-handle and # columns that precede COLUMN_COUNT data columns. */}
 										<TableCell
-											colSpan={COLUMN_COUNT + 1}
+											colSpan={COLUMN_COUNT + 2}
 											className="py-8 text-center text-muted-foreground"
 										>
 											<Calendar
