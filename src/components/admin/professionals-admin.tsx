@@ -84,9 +84,11 @@ function ProfessionalFormFields({ item }: { item?: AdminProfessional }) {
 function ProfessionalRow({
 	item,
 	handle,
+	index,
 }: {
 	item: AdminProfessional;
 	handle: ReactNode;
+	index: number;
 }) {
 	const { formAction, open, setOpen, errorMessage } =
 		useActionDialog(updateProfessional);
@@ -107,6 +109,9 @@ function ProfessionalRow({
 
 	return (
 		<>
+			<TableCell className="w-10 font-mono text-xs text-muted-foreground">
+				{index + 1}
+			</TableCell>
 			<TableCell className="w-10">{handle}</TableCell>
 			<TableCell>
 				{item.image_url ? (
@@ -279,8 +284,8 @@ export function ProfessionalsAdmin({ items }: { items: AdminProfessional[] }) {
 				items={items}
 				getId={(item) => item.id}
 				onReorder={handleReorder}
-				renderRow={(item, handle) => (
-					<ProfessionalRow item={item} handle={handle} />
+				renderRow={(item, handle, index) => (
+					<ProfessionalRow item={item} handle={handle} index={index} />
 				)}
 			>
 				<Card className="border-border bg-white shadow-sm">
@@ -288,6 +293,9 @@ export function ProfessionalsAdmin({ items }: { items: AdminProfessional[] }) {
 						<Table>
 							<TableHeader>
 								<TableRow>
+									<TableHead className="w-10 text-xs font-mono text-muted-foreground">
+										#
+									</TableHead>
 									<TableHead className="w-10" />
 									<TableHead>Imagen</TableHead>
 									<TableHead>Nombre</TableHead>
@@ -301,9 +309,9 @@ export function ProfessionalsAdmin({ items }: { items: AdminProfessional[] }) {
 								<SortableTableRows />
 								{items.length === 0 ? (
 									<TableRow>
-										{/* +1 covers the drag-handle column that precedes COLUMN_COUNT data columns. */}
+										{/* +2 covers the drag-handle and # columns that precede COLUMN_COUNT data columns. */}
 										<TableCell
-											colSpan={COLUMN_COUNT + 1}
+											colSpan={COLUMN_COUNT + 2}
 											className="py-8 text-center text-muted-foreground"
 										>
 											<Users
