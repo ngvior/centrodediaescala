@@ -903,6 +903,186 @@ describe("admin actions", () => {
 		expect(actionMocks.revalidatePath).not.toHaveBeenCalled();
 	});
 
+	// A stale pick aborts the write after the file is already in the bucket. With
+	// no row naming that object, nothing can ever find it again to remove it.
+	it("deletes the uploaded image when the picked category is gone", async () => {
+		const { client } = createSupabaseClientMock([
+			{ table: "gallery_categories", response: { data: null, error: null } },
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+		actionMocks.uploadImage.mockResolvedValue(
+			"https://supabase.co/storage/v1/object/public/cms-images/gallery/uuid-stale.png",
+		);
+
+		const formData = createGalleryItemFormData({
+			category: null,
+			category_id: "category-gone",
+		});
+		const dummyFile = new File(["foo"], "image.png", { type: "image/png" });
+		formData.set("image_file", dummyFile);
+
+		await expect(createGalleryItem(IDLE_STATE, formData)).resolves.toEqual({
+			status: "error",
+			message: "La categoría seleccionada ya no existe. Actualizá la página.",
+		});
+
+		expect(actionMocks.deleteImage).toHaveBeenCalledWith(
+			"https://supabase.co/storage/v1/object/public/cms-images/gallery/uuid-stale.png",
+		);
+		expect(actionMocks.revalidatePath).not.toHaveBeenCalled();
+	});
+
+	// Same stranded object, reached through validation instead of a stale pick:
+	// the title is read while the payload is built, long after the upload.
+	it("deletes the uploaded image when the title is missing", async () => {
+		const { client } = createSupabaseClientMock([
+			{
+				table: "gallery_items",
+				response: { data: { order_index: 2 }, error: null },
+			},
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+		actionMocks.uploadImage.mockResolvedValue(
+			"https://supabase.co/storage/v1/object/public/cms-images/gallery/uuid-untitled.png",
+		);
+
+		const formData = createGalleryItemFormData({ title: "" });
+		const dummyFile = new File(["foo"], "image.png", { type: "image/png" });
+		formData.set("image_file", dummyFile);
+
+		await expect(createGalleryItem(IDLE_STATE, formData)).resolves.toEqual({
+			status: "error",
+			message: "El campo title es obligatorio",
+		});
+
+		expect(actionMocks.deleteImage).toHaveBeenCalledWith(
+			"https://supabase.co/storage/v1/object/public/cms-images/gallery/uuid-untitled.png",
+		);
+		expect(actionMocks.revalidatePath).not.toHaveBeenCalled();
+	});
+
+	// The failed insert was the one path that already cleaned up. Moving the
+	// cleanup into a catch must not lose it.
+	it("deletes the uploaded image when the item insert fails", async () => {
+		const { client } = createSupabaseClientMock([
+			{
+				table: "gallery_items",
+				response: { data: { order_index: 2 }, error: null },
+			},
+			{
+				table: "gallery_items",
+				response: { data: null, error: { message: "Database write error" } },
+			},
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+		actionMocks.uploadImage.mockResolvedValue(
+			"https://supabase.co/storage/v1/object/public/cms-images/gallery/uuid-insert.png",
+		);
+
+		const formData = createGalleryItemFormData();
+		const dummyFile = new File(["foo"], "image.png", { type: "image/png" });
+		formData.set("image_file", dummyFile);
+
+		await expect(createGalleryItem(IDLE_STATE, formData)).resolves.toEqual({
+			status: "error",
+			message: "No se pudo guardar. Intentá nuevamente.",
+		});
+
+		expect(actionMocks.deleteImage).toHaveBeenCalledWith(
+			"https://supabase.co/storage/v1/object/public/cms-images/gallery/uuid-insert.png",
+		);
+	});
+
+	// A URL typed into the form names an object this writer never uploaded, so a
+	// failed write here has nothing of ours to take with it.
+	it("keeps a caller-supplied image url when the picked category is gone", async () => {
+		const { client } = createSupabaseClientMock([
+			{ table: "gallery_categories", response: { data: null, error: null } },
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+
+		await expect(
+			createGalleryItem(
+				IDLE_STATE,
+				createGalleryItemFormData({
+					category: null,
+					category_id: "category-gone",
+					image_url: "/patio.jpg",
+				}),
+			),
+		).resolves.toEqual({
+			status: "error",
+			message: "La categoría seleccionada ya no existe. Actualizá la página.",
+		});
+
+		expect(actionMocks.deleteImage).not.toHaveBeenCalled();
+	});
+
+	// The replacement is stranded, but the stored row still names the original, so
+	// removing the original would break a photo that is still on the public site.
+	it("deletes only the replacement image when the picked category is gone", async () => {
+		const { client } = createSupabaseClientMock([
+			{ table: "gallery_categories", response: { data: null, error: null } },
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+		actionMocks.uploadImage.mockResolvedValue(
+			"https://supabase.co/storage/v1/object/public/cms-images/gallery/uuid-new.png",
+		);
+
+		const formData = createGalleryItemFormData({
+			id: "gallery-id",
+			category: null,
+			category_id: "category-gone",
+			existing_image_url:
+				"https://supabase.co/storage/v1/object/public/cms-images/gallery/uuid-old.png",
+		});
+		const dummyFile = new File(["foo"], "image.png", { type: "image/png" });
+		formData.set("image_file", dummyFile);
+
+		await expect(updateGalleryItem(IDLE_STATE, formData)).resolves.toEqual({
+			status: "error",
+			message: "La categoría seleccionada ya no existe. Actualizá la página.",
+		});
+
+		expect(actionMocks.deleteImage).toHaveBeenCalledWith(
+			"https://supabase.co/storage/v1/object/public/cms-images/gallery/uuid-new.png",
+		);
+		expect(actionMocks.deleteImage).not.toHaveBeenCalledWith(
+			"https://supabase.co/storage/v1/object/public/cms-images/gallery/uuid-old.png",
+		);
+	});
+
+	// The mirror of the test above: once the row names the replacement, the
+	// original is the stranded one. The two URLs must not be swapped.
+	it("deletes only the replaced image when the item update succeeds", async () => {
+		const { client } = createSupabaseClientMock([
+			{ table: "gallery_items", response: { data: null, error: null } },
+		]);
+		actionMocks.createAdminClient.mockReturnValue(client);
+		actionMocks.uploadImage.mockResolvedValue(
+			"https://supabase.co/storage/v1/object/public/cms-images/gallery/uuid-new.png",
+		);
+
+		const formData = createGalleryItemFormData({
+			id: "gallery-id",
+			existing_image_url:
+				"https://supabase.co/storage/v1/object/public/cms-images/gallery/uuid-old.png",
+		});
+		const dummyFile = new File(["foo"], "image.png", { type: "image/png" });
+		formData.set("image_file", dummyFile);
+
+		await expect(updateGalleryItem(IDLE_STATE, formData)).resolves.toEqual({
+			status: "success",
+		});
+
+		expect(actionMocks.deleteImage).toHaveBeenCalledWith(
+			"https://supabase.co/storage/v1/object/public/cms-images/gallery/uuid-old.png",
+		);
+		expect(actionMocks.deleteImage).not.toHaveBeenCalledWith(
+			"https://supabase.co/storage/v1/object/public/cms-images/gallery/uuid-new.png",
+		);
+	});
+
 	// ── Gallery categories ────────────────────────────────────────────────────
 	//
 	// Every cascade below is asserted as an ORDER of writes, not only as a set.
