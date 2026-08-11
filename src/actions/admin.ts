@@ -1167,26 +1167,34 @@ export async function createGalleryItem(
 			imageUrl = getRequiredString(formData, "image_url");
 		}
 
-		const supabase = createAdminClient();
-		const category = await resolveItemCategory(supabase, formData);
-		const orderIndex = await getNextOrderIndex(supabase, "gallery_items");
-		const payload = {
-			title: getRequiredString(formData, "title"),
-			...category,
-			image_url: imageUrl,
-			is_active: getCheckboxBoolean(formData, "is_active", true),
-			order_index: orderIndex,
-			width: getOptionalDimension(formData, "image_width"),
-			height: getOptionalDimension(formData, "image_height"),
-		};
+		// Everything from here on can throw before the row exists: a stale
+		// `category_id`, a missing title, an infrastructure failure. Each one
+		// leaves the object just uploaded with nothing pointing at it and no
+		// later operation able to find it, so every exit from this block takes
+		// the object with it.
+		try {
+			const supabase = createAdminClient();
+			const category = await resolveItemCategory(supabase, formData);
+			const orderIndex = await getNextOrderIndex(supabase, "gallery_items");
+			const payload = {
+				title: getRequiredString(formData, "title"),
+				...category,
+				image_url: imageUrl,
+				is_active: getCheckboxBoolean(formData, "is_active", true),
+				order_index: orderIndex,
+				width: getOptionalDimension(formData, "image_width"),
+				height: getOptionalDimension(formData, "image_height"),
+			};
 
-		const { error } = await supabase.from("gallery_items").insert(payload);
+			const { error } = await supabase.from("gallery_items").insert(payload);
 
-		if (error) {
+			assertMutationSucceeded("gallery_items", error);
+		} catch (error) {
 			if (hasUpload) {
 				await deleteImage(imageUrl);
 			}
-			assertMutationSucceeded("gallery_items", error);
+
+			throw error;
 		}
 
 		revalidateGalleryPaths();
@@ -1214,41 +1222,48 @@ export async function updateGalleryItem(
 			imageUrl = await uploadImage(file, "gallery");
 		}
 
-		const supabase = createAdminClient();
-		const category = await resolveItemCategory(supabase, formData);
-		const isActive = getCheckboxBoolean(formData, "is_active");
-		const payload = {
-			title: getRequiredString(formData, "title"),
-			...category,
-			image_url: imageUrl,
-			is_active: isActive,
-			// Making a photo visible by hand ends its life as a restore candidate:
-			// the marker records that a category deactivation hid it, and that is no
-			// longer the state it is in. Clearing it in the same write is what stops
-			// the marker outliving what it describes.
-			...(isActive ? { hidden_by_category: false } : {}),
-			// Dimensions are only touched when the image itself is replaced, and then
-			// they are always rewritten — to null if the browser produced none. Left
-			// alone, they would describe the new image with the old one's numbers and
-			// the public grid would reserve the wrong box for it.
-			...(hasUpload
-				? {
-						width: getOptionalDimension(formData, "image_width"),
-						height: getOptionalDimension(formData, "image_height"),
-					}
-				: {}),
-		};
+		// Any throw between the replacement upload and the stored row still
+		// pointing at it strands that replacement, so every exit from this block
+		// discards it. Only the replacement: the row still names the original, so
+		// the original stays where it is and keeps a live photo working.
+		try {
+			const supabase = createAdminClient();
+			const category = await resolveItemCategory(supabase, formData);
+			const isActive = getCheckboxBoolean(formData, "is_active");
+			const payload = {
+				title: getRequiredString(formData, "title"),
+				...category,
+				image_url: imageUrl,
+				is_active: isActive,
+				// Making a photo visible by hand ends its life as a restore candidate:
+				// the marker records that a category deactivation hid it, and that is no
+				// longer the state it is in. Clearing it in the same write is what stops
+				// the marker outliving what it describes.
+				...(isActive ? { hidden_by_category: false } : {}),
+				// Dimensions are only touched when the image itself is replaced, and then
+				// they are always rewritten — to null if the browser produced none. Left
+				// alone, they would describe the new image with the old one's numbers and
+				// the public grid would reserve the wrong box for it.
+				...(hasUpload
+					? {
+							width: getOptionalDimension(formData, "image_width"),
+							height: getOptionalDimension(formData, "image_height"),
+						}
+					: {}),
+			};
 
-		const { error } = await supabase
-			.from("gallery_items")
-			.update(payload)
-			.eq("id", id);
+			const { error } = await supabase
+				.from("gallery_items")
+				.update(payload)
+				.eq("id", id);
 
-		if (error) {
+			assertMutationSucceeded("gallery_items", error);
+		} catch (error) {
 			if (hasUpload && imageUrl) {
 				await deleteImage(imageUrl);
 			}
-			assertMutationSucceeded("gallery_items", error);
+
+			throw error;
 		}
 
 		if (hasUpload && existingImageUrl) {
