@@ -34,6 +34,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -46,3 +47,23 @@ next-env.d.ts
 .pi
 .pi-lens
 web-review-mds/
+# internal planning and agent files (kept local only)
+/AGENTS.md
+/CLAUDE.md
+/skills-lock.json
+/openspec/
+/docs/PLAN_ENTREGA.md
+/docs/ARQUITECTURA.md
+/test.tsx
+
+# local tool output
+.codegraph/
+.graphify_*
+graphify-out/
+.windsurf/
+agy-hud/
+agy-hud.tar.gz
+brag-output/
+escala-pi.jsonl
+ctx:
+weekly:
