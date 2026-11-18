@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import Image from "next/image";
-import { TriangleAlert } from "lucide-react";
+import { Eye, EyeOff, TriangleAlert } from "lucide-react";
 import {
 	Card,
 	CardContent,
@@ -18,6 +18,10 @@ const initialState: LoginState = { error: "", kind: null };
 
 export default function LoginPage() {
 	const [state, formAction] = useActionState(loginAdmin, initialState);
+	// React resets uncontrolled fields after the action runs. A controlled email
+	// keeps its value, so a failed login only asks for the password again.
+	const [email, setEmail] = useState("");
+	const [showPassword, setShowPassword] = useState(false);
 
 	return (
 		<div className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden bg-admin-canvas p-4 [--muted-foreground:#626973] [--radius:10px]">
@@ -78,6 +82,9 @@ export default function LoginPage() {
 								name="email"
 								type="email"
 								placeholder="admin@ejemplo.com"
+								autoComplete="email"
+								value={email}
+								onChange={(event) => setEmail(event.target.value)}
 								required
 							/>
 						</div>
@@ -85,7 +92,31 @@ export default function LoginPage() {
 							<label className="text-sm font-medium" htmlFor="password">
 								Contraseña
 							</label>
-							<Input id="password" name="password" type="password" required />
+							<div className="relative">
+								<Input
+									id="password"
+									name="password"
+									type={showPassword ? "text" : "password"}
+									autoComplete="current-password"
+									className="pr-9"
+									required
+								/>
+								<button
+									type="button"
+									onClick={() => setShowPassword((shown) => !shown)}
+									aria-label={
+										showPassword ? "Ocultar contraseña" : "Mostrar contraseña"
+									}
+									aria-pressed={showPassword}
+									className="absolute inset-y-0 right-0 flex w-9 items-center justify-center rounded-r-lg text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+								>
+									{showPassword ? (
+										<EyeOff aria-hidden="true" className="size-4" />
+									) : (
+										<Eye aria-hidden="true" className="size-4" />
+									)}
+								</button>
+							</div>
 						</div>
 
 						{state.error &&
